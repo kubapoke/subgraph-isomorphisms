@@ -1,0 +1,7 @@
+# ninja log v5
+5	208	7854368278911646	CMakeFiles/subgraph-isomorphism.dir/src/main.cpp.obj.ddi	16c1f5bc5aac2135
+210	279	7854368279663483	CMakeFiles/subgraph-isomorphism.dir/CXX.dd	d03ffa15b50b8ba5
+210	279	7854368279663483	C:/Users/zaprz/source/repos/kubapoke/subgraph-isomorphisms/out/build/x64-Debug/CMakeFiles/subgraph-isomorphism.dir/CXXModules.json	d03ffa15b50b8ba5
+210	279	7854368279663483	CMakeFiles/subgraph-isomorphism.dir/src/main.cpp.obj.modmap	d03ffa15b50b8ba5
+289	1573	7854368292568611	CMakeFiles/subgraph-isomorphism.dir/src/main.cpp.obj	7843cb3cef89839c
+1573	1989	7854368296466235	subgraph-isomorphism.exe	1ab638c2f3543352
