@@ -18,7 +18,7 @@ struct Graph {
     Graph(Graph&&) = default;
 
     // Liczba krawedzi wchodzacych i wychodzacych z v.
-    uint32_t degree(const uint32_t v) const {
+    [[nodiscard]] uint32_t degree(const uint32_t v) const {
         uint32_t degree = 0;
 
         for (const uint32_t u : std::ranges::views::iota(0, n)) {
@@ -29,7 +29,7 @@ struct Graph {
         return degree;
     }
 
-    uint64_t totalEdges() const {
+    [[nodiscard]] uint64_t totalEdges() const {
         uint64_t count = 0;
         for(const auto& row : matrix) {
             for(const int val : row) count += val;
@@ -39,7 +39,7 @@ struct Graph {
 
     // Zwraca wierzchołki w kolejności, w jakiej powinny być rozpatrywane
     // Patrz: "PorządekWierzchołków" w dokumentacji
-    std::vector<uint32_t> verticesOrder() const {
+    [[nodiscard]] std::vector<uint32_t> verticesOrder() const {
         std::vector<uint32_t> order(n, 0);
 
         // edgesToAlreadyAssigned[i] = j oznaczna, że i-ty wierzchołek ma j krawędzi do już uporządkowanych wierzchołków
@@ -94,6 +94,8 @@ struct Mappings {
         maps.resize(copies_count, std::vector<int>(vertices, NO_MAPPING));
     }
     Mappings(Mappings&&) = default;
+    Mappings(const Mappings&) = default;
+    Mappings& operator=(const Mappings&) = default;
 };
 
 struct Solution {
@@ -130,13 +132,57 @@ struct Candidate {
     uint32_t v;
     uint32_t deltaCost;
     uint32_t deltaExist;
+
+    explicit Candidate(const uint32_t v, const uint32_t deltaCost, const uint32_t deltaExist): v(v), deltaCost(deltaCost), deltaExist(deltaExist) {}
+    Candidate(Candidate&&) = default;
+    Candidate& operator=(Candidate&&) = default;
 };
 
 typedef std::vector<Candidate> Candidates;
 
+uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, const Graph& extended, const std::vector<int>& mapping) {
+    uint32_t covered = 0;
+    for (const uint32_t x : std::ranges::views::iota(0, g1.n)) {
+        const auto mappedX = mapping[x];
+        if (mappedX == Mappings::NO_MAPPING) {
+            continue;
+        }
+
+        int reqOut = g1.matrix[u][x];
+        int haveOut = extended.matrix[v][mappedX];
+        covered += std::min(reqOut, haveOut);
+
+        int reqIn = g1.matrix[x][u];
+        int haveIn = extended.matrix[mappedX][v];
+        covered += std::min(reqIn, haveIn);
+    }
+
+    return covered;
+}
+
 Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, const Graph &extended, const std::vector<int> &mapping) {
-    // TODO:
-    return std::vector<Candidate>();
+    auto candidates = std::vector<Candidate>();
+
+    for (const uint32_t v : std::ranges::views::iota(0, g2.n)) {
+        if (mapping[v] == Mappings::NO_MAPPING) {
+            continue;
+        }
+        const auto deltaCost = countCost(u, v, g1, extended, mapping);
+        const auto deltaExist = computeDeltaExist(u, v, g1, extended, mapping);
+
+        candidates.emplace_back(v, deltaCost, deltaExist);
+    }
+
+    std::ranges::sort(candidates, [&extended](const Candidate &a, const Candidate &b) {
+         if (a.deltaExist != b.deltaExist) {
+             return a.deltaExist < b.deltaExist;
+         }
+        if (a.deltaCost != b.deltaCost) {
+            return a.deltaCost > b.deltaCost;
+        }
+        return extended.degree(a.v) < extended.degree(b.v);
+    });
+    return candidates;
 }
 
 // Aktualizuje graf `extended` dodając brakujące krawędzie po przypisaniu mapowania u -> v.
@@ -163,6 +209,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
     }
 }
 
+// TODO: Zapewnienie odnalezienia rodziny mapowań -> trzeba to zapewnic tutaj, dodajac jakies checki
 Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const int copiesCount) {
     auto extended = g2;
     auto mappings = Mappings(copiesCount, extended.n);
@@ -190,12 +237,10 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                         continue;
                     }
                 }
-                else {
-                    // Kandydat spelnia wymagania, mozemy pominac kolejnych
-                    v = candidate.v;
-                    candCost = candidate.deltaCost;
-                    break;
-                }
+                // Kandydat spelnia wymagania, mozemy pominac kolejnych
+                v = candidate.v;
+                candCost = candidate.deltaCost;
+                break;
             }
             mappings.maps[i][u] = v;
             cost += candCost;
@@ -320,6 +365,10 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
     return s;
 }
 
+Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
+    const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
+    return ImproveApproximateExpansion(initialExpansion, g1, g2);
+}
 
 int main() {
 
