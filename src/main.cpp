@@ -111,6 +111,9 @@ struct Solution {
 int countCost(const int u, const int v, const Graph &G1, const Graph &G2, const std::vector<int> &mapping) {
     int costIncrease = 0;
     for (int i = 0; i < mapping.size(); i++) {
+        if (mapping[i] == Mappings::NO_MAPPING) {
+            continue;
+        }
         const int reqOut = G1.matrix[u][i];
         const int reqIn = G1.matrix[i][u];
         const int currOut = G2.matrix[v][mapping[i]];
