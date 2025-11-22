@@ -1,26 +1,97 @@
-﻿#include <iostream>
-#include <vector>
+﻿#include <vector>
 #include <algorithm>
-#include <iomanip>
 #include <set>
-
-using namespace std;
+#include <cstdint>
+#include <ranges>
 
 struct Graph {
     int n;
-    vector<vector<int>> matrix;
+    std::vector<std::vector<int>> matrix;
 
-    Graph(int vertices = 0) : n(vertices) {
-        matrix.resize(n, vector<int>(n, 0));
+    explicit Graph(const int vertices = 0) : n(vertices) {
+        matrix.resize(n, std::vector(n, 0));
+    }
+    Graph(const Graph&) = default;
+    Graph& operator=(const Graph&) = default;
+    Graph(Graph&&) = default;
+
+    // Liczba krawedzi wchodzacych i wychodzacych z v.
+    uint32_t degree(const uint32_t v) const {
+        uint32_t degree = 0;
+
+        for (const uint32_t u : std::ranges::views::iota(0, n)) {
+            degree += matrix[u][v];
+            degree += matrix[v][u];
+        }
+
+        return degree;
     }
 
-    long long totalEdges() const {
-        long long count = 0;
+    uint64_t totalEdges() const {
+        uint64_t count = 0;
         for(const auto& row : matrix) {
-            for(int val : row) count += val;
+            for(const int val : row) count += val;
         }
         return count;
     }
+
+    // Zwraca wierzchołki w kolejności, w jakiej powinny być rozpatrywane
+    // Patrz: "PorządekWierzchołków" w dokumentacji
+    std::vector<uint32_t> verticesOrder() const {
+        std::vector<uint32_t> order(n, 0);
+
+        // edgesToAlreadyAssigned[i] = j oznaczna, że i-ty wierzchołek ma j krawędzi do już uporządkowanych wierzchołków
+        std::vector<uint32_t> edgesToAlreadyAssigned(n, 0);
+
+        std::vector<bool> assigned(n, false);
+        for (const uint32_t i : std::ranges::views::iota(0, n)) {
+            auto best = UINT32_MAX;
+
+            // Znajdujemy wierzcholek, ktory:
+            // - ma najwiecej krawedzi do juz przypisanych wierzcholkow
+            // - w przypadku remisu ma najwiekszy stopien
+            for (const uint32_t v : std::ranges::views::iota(0, n)) {
+                if (assigned[v]) {
+                    continue;
+                }
+                if (edgesToAlreadyAssigned[v] > edgesToAlreadyAssigned[best]) {
+                    best = v;
+                    continue;
+                }
+                if (edgesToAlreadyAssigned[v] == edgesToAlreadyAssigned[best]) {
+                    if (degree(v) > degree(best)) {
+                        best = v;
+                    }
+                }
+            }
+
+            order[i] = best;
+            assigned[i] = true;
+
+            // Poprawiamy informacje o liczbie krawedzi do juz przypisanych wierzcholkow
+            // dla kazdego sasiada wierzcholka, ktorego przypisalismy w tej iteracji.
+            for (const uint32_t u : std::ranges::views::iota(0, n)) {
+                if (matrix[best][u] > 0 || matrix[u][best] > 0) {
+                    const auto total = matrix[best][u] + matrix[u][best];
+                    edgesToAlreadyAssigned[u] += total;
+                }
+            }
+        }
+
+        return order;
+    }
+};
+
+struct Mappings {
+    int n, k;
+    std::vector<std::vector<int>> maps;
+
+    static constexpr int NO_MAPPING = -1;
+
+    explicit Mappings(const int copies_count = 0, const int vertices = 0) : n(vertices), k(copies_count) {
+        maps.resize(copies_count, std::vector<int>(vertices, NO_MAPPING));
+    }
+    Mappings(Mappings&&) = default;
 };
 
 struct Solution {
@@ -30,48 +101,112 @@ struct Solution {
     bool found;
 
     Solution() : cost(-1), found(false) {}
+    Solution(Graph&& extendedGraph, Mappings&& mappings, const uint64_t cost) : extendedGraph(std::move(extendedGraph)), mappings(std::move(mappings)), cost(cost), found(false) {}
 };
 
-struct Mappings {
-    int n, k;
-    std::vector<std::vector<int>> maps;
-
-    Mappings(int copies_count = 0, int vertices = 0) : n(vertices), k(copies_count) {
-        maps.resize(copies_count, vector<int>(vertices, 0));
-    }
-};
-
-int countCost(int u, int v, Graph G1, Graph G2, vector<int> mapping) {
+int countCost(const int u, const int v, const Graph &G1, const Graph &G2, const std::vector<int> &mapping) {
     int costIncrease = 0;
     for (int i = 0; i < mapping.size(); i++) {
-            int reqOut = G1.matrix[u][i];
-            int reqIn = G1.matrix[i][u];
-            int currOut = G2.matrix[v][mapping[i]];
-            int currIn = G2.matrix[mapping[i]][v];
-            if (currOut < reqOut) {
-                int diff = reqOut - currOut;
-                costIncrease += diff;
-            }
-            if (currIn < reqIn) {
-                int diff = reqIn - currIn;
-                costIncrease += diff;
-            }
+        const int reqOut = G1.matrix[u][i];
+        const int reqIn = G1.matrix[i][u];
+        const int currOut = G2.matrix[v][mapping[i]];
+        const int currIn = G2.matrix[mapping[i]][v];
+        if (currOut < reqOut) {
+            const int diff = reqOut - currOut;
+            costIncrease += diff;
+        }
+        if (currIn < reqIn) {
+            const int diff = reqIn - currIn;
+            costIncrease += diff;
+        }
     }
 
     return costIncrease;
 }
 
-// Usuwamy affected wiezrchołki z mapowania
-// Przeiterować się po wszystkich kopiach i dołożyć ile powinno istnieć krawędzi z wierzchołka na które było mapowanie. Sprawdzić o ile zmniejszyły się ilości krawędzi potrzebnych do dołożenia
-// Przed chwilą koszt się zminiejszał, teraz będzie sie zwiększał. Wywołujemy ObliczKoszt z odpowiednim mapowaniem. Następnie delta to roznica tego co sie zmniejszylo - to co dostalismyz obliczkoszt
-// Jak mam swapa: usuwamy oba jednoczesnie, liczymy dla sasiadów tego i tego to samo. Updatujemy od razu krotności krawędzi. Patrzymy o ile spadło jak obu nie ma. Potem obliczkoszta dla jednego
-// dodajemy tego jednego obliczamy koszt dla drugiego i suma z tego to jest to co wzroslo. nastepnie roznica analogicznie.
+struct Candidate {
+    uint32_t v;
+    uint32_t deltaCost;
+    uint32_t deltaExist;
+};
 
-// Alternatywna opcja: swap od razu. Ustawiam na jakiejs kopii (w cpp nie w kontekscie zadania) grafu wartosci z oryginalnego grafu na sasiadach tego na który było mapowane.
-// Potem zwiększam na podstawie k kopii by zmaksować co jest potrzebne. Potem to samo dla drugiego wiezrchołka. TPotem na grafie przed transofmacjami i tej ztransformowanej kopii robie roznice
-// kosztow po tych affected krawedziach. 
+typedef std::vector<Candidate> Candidates;
 
-Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
+Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, const Graph &extended, const std::vector<int> &mapping) {
+    // TODO:
+    return std::vector<Candidate>();
+}
+
+// Aktualizuje graf `extended` dodając brakujące krawędzie po przypisaniu mapowania u -> v.
+void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph &extended, const std::vector<int> &mapping) {
+    for (const uint32_t i : std::ranges::views::iota(0, g1.n)) {
+        const auto mapped = mapping[i];
+        // Pomijamy dla niezmappowanych wierzchołków
+        if (mapped == Mappings::NO_MAPPING) {
+            continue;
+        }
+
+        const auto reqOut = g1.matrix[u][i];
+        const auto reqIn = g1.matrix[i][u];
+
+        int& currOut = extended.matrix[v][mapped];
+        int& currIn = extended.matrix[mapped][v];
+
+        if (currOut < reqOut) {
+            currOut = reqOut;
+        }
+        if (currIn < reqIn) {
+            currIn = reqIn;
+        }
+    }
+}
+
+Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const int copiesCount) {
+    auto extended = g2;
+    auto mappings = Mappings(copiesCount, extended.n);
+    const auto order = g1.verticesOrder();
+    auto cost = 0;
+    for (const uint32_t i : std::ranges::views::iota(0, copiesCount)) {
+        bool prefixEqual = true;
+        auto v = UINT32_MAX;
+        auto candCost = 0;
+        std::vector<int32_t> mPrevious;
+        if (i == 0) {
+            mPrevious = std::vector<int32_t>(g1.n, UINT32_MAX);
+        } else {
+            mPrevious = mappings.maps[i - 1];
+        }
+        for (const uint32_t j : std::ranges::views::iota(0, g1.n)) {
+            const auto u = order[j];
+            const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
+            for (const auto &candidate : candidates) {
+                if (prefixEqual) {
+                    if (j < g1.n && candidate.v < mPrevious[u]) {
+                        continue;
+                    }
+                    if (j == g1.n && candidate.v <= mPrevious[u]) {
+                        continue;
+                    }
+                }
+                else {
+                    // Kandydat spelnia wymagania, mozemy pominac kolejnych
+                    v = candidate.v;
+                    candCost = candidate.deltaCost;
+                    break;
+                }
+            }
+            mappings.maps[i][u] = v;
+            cost += candCost;
+            addMissingEdges(u, v, g1, extended, mappings.maps[i]);
+            prefixEqual = prefixEqual && (v == mPrevious[u]);
+        }
+
+    }
+    return Solution(std::move(extended), std::move(mappings), cost);
+}
+
+void ImproveApproximateExpansion(Solution s, const Graph &g1 /* smaller graph */, const Graph &g2 /* bigger graph */) {
+    std::vector<std::set<int>> images;
     bool improved = true;
     int bestDelta;
     int copyToModify;
@@ -91,9 +226,8 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     int oldUMapping;
                     int delta;
                     if (it != s.mappings.maps[i].end()) {
-                        int vertexMappedToV = distance(s.mappings.maps[i].begin(), it); // wierzchołek który przedtem był mapowany na v
-                        oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
-                        swap(s.mappings.maps[i][vertexMappedToV], s.mappings.maps[i][u]);
+                        mappedVertex = distance(s.mappings.maps[i].begin(), it);
+                        std::swap(s.mappings.maps[i][mappedVertex], s.mappings.maps[i][u]);
                     }
                     else {
                         oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
