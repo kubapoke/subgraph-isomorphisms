@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(SOURCES src/main.cpp
 )
 
-add_executable(subgraph-isomorphism ${SOURCES})
+add_executable(subgraph-isomorphism ${SOURCES} "src/ApproximationAlgorithm.cpp")
 
 target_include_directories(${PROJECT_NAME}
         PRIVATE
