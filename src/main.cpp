@@ -1,25 +1,31 @@
-﻿#include <iostream>
-#include <vector>
+﻿#include <vector>
 #include <algorithm>
-#include <iomanip>
 #include <set>
-
-using namespace std;
+#include <cstdint>
 
 struct Graph {
     int n;
-    vector<vector<int>> matrix;
+    std::vector<std::vector<int>> matrix;
 
-    Graph(int vertices = 0) : n(vertices) {
-        matrix.resize(n, vector<int>(n, 0));
+    explicit Graph(const int vertices = 0) : n(vertices) {
+        matrix.resize(n, std::vector<int>(n, 0));
     }
 
     long long totalEdges() const {
         long long count = 0;
         for(const auto& row : matrix) {
-            for(int val : row) count += val;
+            for(const int val : row) count += val;
         }
         return count;
+    }
+};
+
+struct Mappings {
+    int n, k;
+    std::vector<std::vector<int>> maps;
+
+    explicit Mappings(const int copies_count = 0, const int vertices = 0) : n(vertices), k(copies_count) {
+        maps.resize(copies_count, std::vector<int>(vertices, 0));
     }
 };
 
@@ -32,28 +38,19 @@ struct Solution {
     Solution() : cost(-1), found(false) {}
 };
 
-struct Mappings {
-    int n, k;
-    std::vector<std::vector<int>> maps;
-
-    Mappings(int copies_count = 0, int vertices = 0) : n(vertices), k(copies_count) {
-        maps.resize(copies_count, vector<int>(vertices, 0));
-    }
-};
-
-int countCost(int u, int v, Graph G1, Graph G2, vector<int> mapping) {
+int countCost(const int u, const int v, const Graph &G1, const Graph &G2, const std::vector<int> &mapping) {
     int costIncrease = 0;
     for (int i = 0; i < mapping.size(); i++) {
-        int reqOut = G1.matrix[u][i];
-        int reqIn = G1.matrix[i][u];
-        int currOut = G2.matrix[v][mapping[i]];
-        int currIn = G2.matrix[mapping[i]][v];
+        const int reqOut = G1.matrix[u][i];
+        const int reqIn = G1.matrix[i][u];
+        const int currOut = G2.matrix[v][mapping[i]];
+        const int currIn = G2.matrix[mapping[i]][v];
         if (currOut < reqOut) {
-            int diff = reqOut - currOut;
+            const int diff = reqOut - currOut;
             costIncrease += diff;
         }
         if (currIn < reqIn) {
-            int diff = reqIn - currIn;
+            const int diff = reqIn - currIn;
             costIncrease += diff;
         }
     }
@@ -62,7 +59,7 @@ int countCost(int u, int v, Graph G1, Graph G2, vector<int> mapping) {
 }
 
 
-void ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
+void ImproveApproximateExpansion(Solution s, const Graph &g1 /* smaller graph */, const Graph &g2 /* bigger graph */) {
     std::vector<std::set<int>> images;
     bool improved = true;
     int bestDelta;
@@ -87,7 +84,7 @@ void ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph
                     auto it = std::find(s.mappings.maps[i].begin(), s.mappings.maps[i].end(), v);
                     if (it != s.mappings.maps[i].end()) {
                         mappedVertex = distance(s.mappings.maps[i].begin(), it);
-                        swap(s.mappings.maps[i][mappedVertex], s.mappings.maps[i][u]);
+                        std::swap(s.mappings.maps[i][mappedVertex], s.mappings.maps[i][u]);
                     }
                     else {
                         s.mappings.maps[i][u] = v;
