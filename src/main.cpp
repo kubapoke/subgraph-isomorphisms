@@ -94,6 +94,8 @@ struct Mappings {
         maps.resize(copies_count, std::vector<int>(vertices, NO_MAPPING));
     }
     Mappings(Mappings&&) = default;
+    Mappings(const Mappings&) = default;
+    Mappings& operator=(const Mappings&) = default;
 };
 
 struct Solution {
@@ -363,6 +365,10 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
     return s;
 }
 
+Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
+    const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
+    return ImproveApproximateExpansion(initialExpansion, g1, g2);
+}
 
 int main() {
 
