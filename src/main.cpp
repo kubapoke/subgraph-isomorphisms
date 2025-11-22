@@ -71,7 +71,7 @@ struct Graph {
             // Poprawiamy informacje o liczbie krawedzi do juz przypisanych wierzcholkow
             // dla kazdego sasiada wierzcholka, ktorego przypisalismy w tej iteracji.
             for (const uint32_t u : std::ranges::views::iota(0, n)) {
-                if (matrix[best][u] > 0) {
+                if (matrix[best][u] > 0 || matrix[u][best] > 0) {
                     const auto total = matrix[best][u] + matrix[u][best];
                     edgesToAlreadyAssigned[u] += total;
                 }
@@ -86,8 +86,10 @@ struct Mappings {
     int n, k;
     std::vector<std::vector<int>> maps;
 
+    static constexpr int NO_MAPPING = -1;
+
     explicit Mappings(const int copies_count = 0, const int vertices = 0) : n(vertices), k(copies_count) {
-        maps.resize(copies_count, std::vector<int>(vertices, 0));
+        maps.resize(copies_count, std::vector<int>(vertices, NO_MAPPING));
     }
     Mappings(Mappings&&) = default;
 };
@@ -122,13 +124,83 @@ int countCost(const int u, const int v, const Graph &G1, const Graph &G2, const 
     return costIncrease;
 }
 
+struct Candidate {
+    uint32_t v;
+    uint32_t deltaCost;
+    uint32_t deltaExist;
+};
+
+typedef std::vector<Candidate> Candidates;
+
+Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, const Graph &extended, const std::vector<int> &mapping) {
+    // TODO:
+    return std::vector<Candidate>();
+}
+
+// Aktualizuje graf `extended` dodając brakujące krawędzie po przypisaniu mapowania u -> v.
+void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph &extended, const std::vector<int> &mapping) {
+    for (const uint32_t i : std::ranges::views::iota(0, g1.n)) {
+        const auto mapped = mapping[i];
+        // Pomijamy dla niezmappowanych wierzchołków
+        if (mapped == Mappings::NO_MAPPING) {
+            continue;
+        }
+
+        const auto reqOut = g1.matrix[u][i];
+        const auto reqIn = g1.matrix[i][u];
+
+        int& currOut = extended.matrix[v][mapped];
+        int& currIn = extended.matrix[mapped][v];
+
+        if (currOut < reqOut) {
+            currOut = reqOut;
+        }
+        if (currIn < reqIn) {
+            currIn = reqIn;
+        }
+    }
+}
+
 Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const int copiesCount) {
     auto extended = g2;
     auto mappings = Mappings(copiesCount, extended.n);
     const auto order = g1.verticesOrder();
     auto cost = 0;
     for (const uint32_t i : std::ranges::views::iota(0, copiesCount)) {
-        // TODO:
+        bool prefixEqual = true;
+        auto v = UINT32_MAX;
+        auto candCost = 0;
+        std::vector<int32_t> mPrevious;
+        if (i == 0) {
+            mPrevious = std::vector<int32_t>(g1.n, UINT32_MAX);
+        } else {
+            mPrevious = mappings.maps[i - 1];
+        }
+        for (const uint32_t j : std::ranges::views::iota(0, g1.n)) {
+            const auto u = order[j];
+            const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
+            for (const auto &candidate : candidates) {
+                if (prefixEqual) {
+                    if (j < g1.n && candidate.v < mPrevious[u]) {
+                        continue;
+                    }
+                    if (j == g1.n && candidate.v <= mPrevious[u]) {
+                        continue;
+                    }
+                }
+                else {
+                    // Kandydat spelnia wymagania, mozemy pominac kolejnych
+                    v = candidate.v;
+                    candCost = candidate.deltaCost;
+                    break;
+                }
+            }
+            mappings.maps[i][u] = v;
+            cost += candCost;
+            addMissingEdges(u, v, g1, extended, mappings.maps[i]);
+            prefixEqual = prefixEqual && (v == mPrevious[u]);
+        }
+
     }
     return Solution(std::move(extended), std::move(mappings), cost);
 }
