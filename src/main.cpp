@@ -207,45 +207,36 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
     return Solution(std::move(extended), std::move(mappings), cost);
 }
 
-// Usuwamy affected wiezrchołki z mapowania
-// Przeiterować się po wszystkich kopiach i dołożyć ile powinno istnieć krawędzi z wierzchołka na które było mapowanie. Sprawdzić o ile zmniejszyły się ilości krawędzi potrzebnych do dołożenia
-// Przed chwilą koszt się zminiejszał, teraz będzie sie zwiększał. Wywołujemy ObliczKoszt z odpowiednim mapowaniem. Następnie delta to roznica tego co sie zmniejszylo - to co dostalismyz obliczkoszt
-// Jak mam swapa: usuwamy oba jednoczesnie, liczymy dla sasiadów tego i tego to samo. Updatujemy od razu krotności krawędzi. Patrzymy o ile spadło jak obu nie ma. Potem obliczkoszta dla jednego
-// dodajemy tego jednego obliczamy koszt dla drugiego i suma z tego to jest to co wzroslo. nastepnie roznica analogicznie.
-
-// Alternatywna opcja: swap od razu. Ustawiam na jakiejs kopii (w cpp nie w kontekscie zadania) grafu wartosci z oryginalnego grafu na sasiadach tego na który było mapowane.
-// Potem zwiększam na podstawie k kopii by zmaksować co jest potrzebne. Potem to samo dla drugiego wiezrchołka. TPotem na grafie przed transofmacjami i tej ztransformowanej kopii robie roznice
-// kosztow po tych affected krawedziach. 
 
 Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
-    bool improved = true;
-    int bestDelta;
-    int copyToModify;
-    vector<int> newBestMapping;
-    vector<vector<int>> matrixForNewBestMapping;
+    bool improved = true; // czy znaleziono lepsze rozwiązanie
+    int bestDelta;  // o ile lepsze rozwiązanie znalezion (zakres (-inf, 0))
+    int copyToModify; // kopia, w która należy dokonać zmian przy najlepszym znalezionym rozwiązaniu
+    vector<int> newBestMapping; // najoptymalniejsze znalezione mapowanie
+    vector<vector<int>> matrixForNewBestMapping; // Macierz sąsiedztwa grafu G2' po zastosowaniu mapowania newBestMapping
     while (improved) {
-        improved = false;
+        improved = false; 
         bestDelta = 0;
         copyToModify = -1;
-        for (int i = 0; i < s.mappings.k; i++) { // wybór kopii, w której zmieniamy mapowanie
+        for (int i = 0; i < s.mappings.k; i++) { // wybór kopii, w której szukamy lepszego mapowania
 
-            for (int u = 0; u < g1.n; u++) { // wierzchołek który dostaje mapowanie
+            for (int u = 0; u < g1.n; u++) { // wierzchołek który dostaje mapowanie nowe mapowanie
                 for (int v = 0; v < g2.n; v++) { // v - nowe mapowanie wierzchołka u
-                    vector<vector<int>> modifiedMatrix = s.extendedGraph.matrix; // kopia macierzy grafu
-                    vector<int> currentMapping = s.mappings.maps[i];
+                    vector<vector<int>> modifiedMatrix = s.extendedGraph.matrix; // kopia macierzy sąsiedztwa grafu G2 - do modyfikacji
+                    vector<int> currentMapping = s.mappings.maps[i]; // aktualne mapowanie dla kopii i(zapisane, by na końcu móc cofnąć zmiany)
                     auto it = std::find(s.mappings.maps[i].begin(), s.mappings.maps[i].end(), v);
                     int oldUMapping;
                     int delta;
-                    if (it != s.mappings.maps[i].end()) {
-                        int vertexMappedToV = distance(s.mappings.maps[i].begin(), it); // wierzchołek który przedtem był mapowany na v
+                    if (it != s.mappings.maps[i].end()) { // jeżeli jakis wierzchołek z G1 juz jest mapowany n v
+                        int vertexMappedToV = distance(s.mappings.maps[i].begin(), it); // wierzchołek G1, który aktualnie jest mapowany na v
                         oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
                         swap(s.mappings.maps[i][vertexMappedToV], s.mappings.maps[i][u]);
                     }
-                    else {
-                        oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
+                    else { // jeżeli żaden wierzchołek z G1 nie jest mapowany na v
+                        oldUMapping = s.mappings.maps[i][u]; 
                         s.mappings.maps[i][u] = v;
                     }
-                    for (int k = 0; k < s.extendedGraph.n; k++) { // resetowanie grafu do stanu neutralnego ze wsględnu na zmianę mapowań
+                    for (int k = 0; k < s.extendedGraph.n; k++) { // usuwanie dodanych wcześniej krawędzi do G2 wchodzących/wychodzących do v i oldUMapping
                         delta -= (modifiedMatrix[oldUMapping][k] - g2.matrix[oldUMapping][k]);
                         modifiedMatrix[oldUMapping][k] = g2.matrix[oldUMapping][k];
                         delta -= (modifiedMatrix[v][k] - g2.matrix[v][k]);
@@ -255,11 +246,11 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                         delta -= (modifiedMatrix[k][v] - g2.matrix[k][v]);
                         modifiedMatrix[k][v] = g2.matrix[k][v];
                     }
-                    // zwiększamy krawędzie ze względu na mapowania na v
-                    for (int copynr = 0; copynr < s.mappings.k; copynr++) { // dla kazdej kopii
+                    // zwiększamy krawędzie ze względu na mapowanie na v
+                    for (int copynr = 0; copynr < s.mappings.k; copynr++) { 
                         auto vIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), v); // sprawdź czy v jest czyimś mapowaniem w kopii copynr
-                        int vertexMappedOnV = distance(s.mappings.maps[i].begin(), it); // wierzchołek mapowany na v w kopii copynr
                         if (it != s.mappings.maps[copynr].end()) {
+                            int vertexMappedOnV = distance(s.mappings.maps[i].begin(), it); // wierzchołek mapowany na v w kopii copynr
                             for (int n = 0; n < g1.n; n++) { // dla kazdego wierzchołka z mniejszego grafu
                                 int mappingOfN = s.mappings.maps[copynr][n]; // mapowanie wierzchołka n z g1 dla kopii copynr na wierzcholek g2
                                 int reqIn = g1.matrix[n][vertexMappedOnV]; // sprawdzenie ile wychodzi krawdzi z n do wierzchołka który jest mapowany na v w kopii copynr
@@ -268,7 +259,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                                     modifiedMatrix[mappingOfN][v] = reqIn;
                                     delta += (reqIn - currIn);
                                 }
-                                int reqOut = g1.matrix[vertexMappedOnV][n]; // sprawdzenie ile wychodiz krawedzi z wierzchołka mapowanego na v do n
+                                int reqOut = g1.matrix[vertexMappedOnV][n]; // sprawdzenie ile wychodzi krawedzi z wierzchołka mapowanego na v do n
                                 int currOut = modifiedMatrix[v][mappingOfN]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
                                 if (reqOut > currOut) {
                                     modifiedMatrix[v][s.mappings.maps[copynr][n]] = reqOut;
@@ -279,22 +270,22 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     }
 
                     // zwiększamy krawędzie ze względu na to że mapowania na oldUMapping
-                    for (int copynr = 0; copynr < s.mappings.k; copynr++) { // dla kazdej kopii
-                        auto oldUMappingIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), oldUMapping); // sprawdź czy v jest czyimś mapowaniem w kopii copynr
-                        int vertexMappedOnOldUMapping = distance(s.mappings.maps[i].begin(), it); // wierzchołek mapowany na stare mapowanie u w kopii copynr
+                    for (int copynr = 0; copynr < s.mappings.k; copynr++) {
+                        auto oldUMappingIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), oldUMapping); // sprawdź czy stare mapowanie u jest czyimś mapowaniem w kopii copynr
                         if (oldUMappingIterator != s.mappings.maps[copynr].end()) {
-                            for (int n = 0; n < g1.n; n++) { // dla kazdego wierzchołka z mniejszego grafu
+                            int vertexMappedToOldUMapping = distance(s.mappings.maps[i].begin(), it); // wierzchołek mapowany na stare mapowanie u w kopii copynr
+                            for (int n = 0; n < g1.n; n++) {
                                 int mappingOfN = s.mappings.maps[copynr][n]; // mapowanie wierzchołka n z g1 dla kopii copynr na wierzcholek g2
-                                int reqIn = g1.matrix[n][vertexMappedOnOldUMapping]; // sprawdzenie ile wychodzi krawdzi z n do wierzchołka który jest mapowany na stare mapowanie u w kopii copynr
-                                int currIn = modifiedMatrix[mappingOfN][v]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
+                                int reqIn = g1.matrix[n][vertexMappedToOldUMapping]; // sprawdzenie ile wychodzi krawdzi z n do wierzchołka który jest mapowany na stare mapowanie u w kopii copynr
+                                int currIn = modifiedMatrix[mappingOfN][oldUMapping]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
                                 if (reqIn > currIn) {
-                                    modifiedMatrix[mappingOfN][v] = reqIn;
+                                    modifiedMatrix[mappingOfN][oldUMapping] = reqIn;
                                     delta += (reqIn - currIn);
                                 }
-                                int reqOut = g1.matrix[vertexMappedOnOldUMapping][n]; // sprawdzenie ile wychodiz krawedzi z wierzchołka mapowanego na stare mapowanie u do n
-                                int currOut = modifiedMatrix[v][mappingOfN]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
+                                int reqOut = g1.matrix[vertexMappedToOldUMapping][n]; // sprawdzenie ile wychodiz krawedzi z wierzchołka mapowanego na stare mapowanie u do n
+                                int currOut = modifiedMatrix[oldUMapping][mappingOfN]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
                                 if (reqOut > currOut) {
-                                    modifiedMatrix[v][s.mappings.maps[copynr][n]] = reqOut;
+                                    modifiedMatrix[oldUMapping][s.mappings.maps[copynr][n]] = reqOut;
                                     delta += (reqOut - currOut);
                                 }
                             }
