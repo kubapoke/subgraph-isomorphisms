@@ -56,7 +56,7 @@ struct Graph {
                 if (assigned[v]) {
                     continue;
                 }
-                if (edgesToAlreadyAssigned[v] > edgesToAlreadyAssigned[best]) {
+                if (best == UINT32_MAX || edgesToAlreadyAssigned[v] > edgesToAlreadyAssigned[best]) {
                     best = v;
                     continue;
                 }
