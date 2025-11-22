@@ -340,13 +340,25 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     vector<int> newMapping = s.mappings.maps[i];
                     set<int> vset(s.mappings.maps[i].begin(), s.mappings.maps[i].end());
                     s.mappings.maps[i] = currentMapping;
-                    bool isMappingValid = std::find(s.mappings.maps.begin(), s.mappings.maps.end(), vset) != s.mappings.maps.end();
 
-                    if (isMappingValid && delta < bestDelta) {
-                        bestDelta = delta;
-                        copyToModify = i;
-                        newBestMapping = newMapping;
-                        matrixForNewBestMapping = modifiedMatrix;
+                    if (delta < bestDelta) {
+
+                        // sprawdzenie czy żadne inne mapowanie nie zawiera dokladnie tych samych wiezrchołków
+                        bool isMappingValid = true;
+                        for (const auto& mp : s.mappings.maps) {
+                            std::set<int> mpSet(mp.begin(), mp.end());
+                            if (mpSet == vset) {
+                                isMappingValid = false;
+                                break;
+                            }
+                        }
+
+                        if (isMappingValid) {
+                            bestDelta = delta;
+                            copyToModify = i;
+                            newBestMapping = newMapping;
+                            matrixForNewBestMapping = modifiedMatrix;
+                        }
                     }
 
 
