@@ -1,0 +1,11 @@
+TEST 6: Dwie kopie krawędzi w pustym grafie
+G1: 0→1 (jedna krawędź)
+G2: Pusty (4 wierzchołki, 0 krawędzi)
+k=2
+
+RĘCZNE OBLICZENIE:
+- Kopia 1: M1(0)=0, M1(1)=1 → dodaj krawędź 0→1
+- Kopia 2: M2(0)=2, M2(1)=3 → dodaj krawędź 2→3
+- Obrazy są różne: Im(M1)={0,1}, Im(M2)={2,3} ✓
+
+OCZEKIWANY KOSZT: 2 (po jednej krawędzi dla każdej kopii)

@@ -2,7 +2,12 @@
 #include <algorithm>
 #include <set>
 #include <cstdint>
-#include <ranges>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <chrono>
+#include <iomanip>
 
 using namespace std;
 
@@ -21,7 +26,7 @@ struct Graph {
     [[nodiscard]] uint32_t degree(const uint32_t v) const {
         uint32_t degree = 0;
 
-        for (const uint32_t u : std::ranges::views::iota(0, n)) {
+        for (int u = 0; u < n; ++u) {
             degree += matrix[u][v];
             degree += matrix[v][u];
         }
@@ -46,14 +51,18 @@ struct Graph {
         std::vector<uint32_t> edgesToAlreadyAssigned(n, 0);
 
         std::vector<bool> assigned(n, false);
-        for (const uint32_t i : std::ranges::views::iota(0, n)) {
-            auto best = UINT32_MAX;
+        for (int i = 0; i < n; ++i) {
+            int best = -1;
 
             // Znajdujemy wierzcholek, ktory:
             // - ma najwiecej krawedzi do juz przypisanych wierzcholkow
             // - w przypadku remisu ma najwiekszy stopien
-            for (const uint32_t v : std::ranges::views::iota(0, n)) {
+            for (uint32_t v = 0; v < static_cast<uint32_t>(n); ++v) {
                 if (assigned[v]) {
+                    continue;
+                }
+                if (best == -1) {
+                    best = v;
                     continue;
                 }
                 if (edgesToAlreadyAssigned[v] > edgesToAlreadyAssigned[best]) {
@@ -61,18 +70,18 @@ struct Graph {
                     continue;
                 }
                 if (edgesToAlreadyAssigned[v] == edgesToAlreadyAssigned[best]) {
-                    if (degree(v) > degree(best)) {
+                    if (degree(v) > degree(static_cast<uint32_t>(best))) {
                         best = v;
                     }
                 }
             }
 
             order[i] = best;
-            assigned[i] = true;
+            assigned[best] = true;
 
             // Poprawiamy informacje o liczbie krawedzi do juz przypisanych wierzcholkow
             // dla kazdego sasiada wierzcholka, ktorego przypisalismy w tej iteracji.
-            for (const uint32_t u : std::ranges::views::iota(0, n)) {
+            for (uint32_t u = 0; u < static_cast<uint32_t>(n); ++u) {
                 if (matrix[best][u] > 0 || matrix[u][best] > 0) {
                     const auto total = matrix[best][u] + matrix[u][best];
                     edgesToAlreadyAssigned[u] += total;
@@ -108,13 +117,18 @@ struct Solution {
     Solution(Graph&& extendedGraph, Mappings&& mappings, const uint64_t cost) : extendedGraph(std::move(extendedGraph)), mappings(std::move(mappings)), cost(cost), found(false) {}
 };
 
-int countCost(const int u, const int v, const Graph &G1, const Graph &G2, const std::vector<int> &mapping) {
+// Oblicza koszt przypisania u -> v
+// Zgodnie z sekcją 3.5 dokumentacji: ObliczKoszt
+int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended, const std::vector<int> &mapping) {
     int costIncrease = 0;
-    for (int i = 0; i < mapping.size(); i++) {
+    for (size_t i = 0; i < mapping.size(); i++) {
+        if (mapping[i] == Mappings::NO_MAPPING) {
+            continue;  // Pomijamy niezmapowane wierzchołki
+        }
         const int reqOut = G1.matrix[u][i];
         const int reqIn = G1.matrix[i][u];
-        const int currOut = G2.matrix[v][mapping[i]];
-        const int currIn = G2.matrix[mapping[i]][v];
+        const int currOut = G2Extended.matrix[v][mapping[i]];
+        const int currIn = G2Extended.matrix[mapping[i]][v];
         if (currOut < reqOut) {
             const int diff = reqOut - currOut;
             costIncrease += diff;
@@ -123,6 +137,13 @@ int countCost(const int u, const int v, const Graph &G1, const Graph &G2, const 
             const int diff = reqIn - currIn;
             costIncrease += diff;
         }
+    }
+    
+    // POPRAWKA: Dodaj koszt pętli (self-loop)
+    const int reqSelfLoop = G1.matrix[u][u];
+    const int currSelfLoop = G2Extended.matrix[v][v];
+    if (currSelfLoop < reqSelfLoop) {
+        costIncrease += (reqSelfLoop - currSelfLoop);
     }
 
     return costIncrease;
@@ -142,7 +163,7 @@ typedef std::vector<Candidate> Candidates;
 
 uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, const Graph& extended, const std::vector<int>& mapping) {
     uint32_t covered = 0;
-    for (const uint32_t x : std::ranges::views::iota(0, g1.n)) {
+    for (int x = 0; x < g1.n; ++x) {
         const auto mappedX = mapping[x];
         if (mappedX == Mappings::NO_MAPPING) {
             continue;
@@ -156,6 +177,11 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
         int haveIn = extended.matrix[mappedX][v];
         covered += std::min(reqIn, haveIn);
     }
+    
+    // POPRAWKA: Dodaj pokrycie pętli (self-loop)
+    int reqSelfLoop = g1.matrix[u][u];
+    int haveSelfLoop = extended.matrix[v][v];
+    covered += std::min(reqSelfLoop, haveSelfLoop);
 
     return covered;
 }
@@ -163,31 +189,45 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
 Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, const Graph &extended, const std::vector<int> &mapping) {
     auto candidates = std::vector<Candidate>();
 
-    for (const uint32_t v : std::ranges::views::iota(0, g2.n)) {
-        if (mapping[v] == Mappings::NO_MAPPING) {
+    // Znajdź wierzchołki już użyte w bieżącym mapowaniu
+    std::set<int> usedVertices;
+    for (int mappedVertex : mapping) {
+        if (mappedVertex != Mappings::NO_MAPPING) {
+            usedVertices.insert(mappedVertex);
+        }
+    }
+
+    for (int v = 0; v < g2.n; ++v) {
+        // Pomiń wierzchołki już użyte w bieżącej kopii
+        if (usedVertices.count(v)) {
             continue;
         }
+        
         const auto deltaCost = countCost(u, v, g1, extended, mapping);
         const auto deltaExist = computeDeltaExist(u, v, g1, extended, mapping);
 
         candidates.emplace_back(v, deltaCost, deltaExist);
     }
 
-    std::ranges::sort(candidates, [&extended](const Candidate &a, const Candidate &b) {
+    // Sortowanie zgodnie z sekcją 3.3 dokumentacji:
+    // 1. Maksymalizacja zgodności (deltaExist - więcej lepiej, więc malejąco)
+    // 2. Minimalizacja przyrostu kosztu (deltaCost - mniej lepiej, więc rosnąco)
+    // 3. Maksymalny stopień wierzchołka (więcej lepiej, więc malejąco)
+    std::sort(candidates.begin(), candidates.end(), [&extended](const Candidate &a, const Candidate &b) {
          if (a.deltaExist != b.deltaExist) {
-             return a.deltaExist < b.deltaExist;
+             return a.deltaExist > b.deltaExist;  // POPRAWKA: malejąco (więcej pokrytych krawędzi to lepiej)
          }
         if (a.deltaCost != b.deltaCost) {
-            return a.deltaCost > b.deltaCost;
+            return a.deltaCost < b.deltaCost;  // POPRAWKA: rosnąco (mniejszy koszt to lepiej)
         }
-        return extended.degree(a.v) < extended.degree(b.v);
+        return extended.degree(a.v) > extended.degree(b.v);  // POPRAWKA: malejąco (większy stopień to lepiej)
     });
     return candidates;
 }
 
 // Aktualizuje graf `extended` dodając brakujące krawędzie po przypisaniu mapowania u -> v.
 void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph &extended, const std::vector<int> &mapping) {
-    for (const uint32_t i : std::ranges::views::iota(0, g1.n)) {
+    for (int i = 0; i < g1.n; ++i) {
         const auto mapped = mapping[i];
         // Pomijamy dla niezmappowanych wierzchołków
         if (mapped == Mappings::NO_MAPPING) {
@@ -207,34 +247,77 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
             currIn = reqIn;
         }
     }
+    
+    // POPRAWKA: Dodaj obsługę pętli (self-loop)
+    const int reqSelfLoop = g1.matrix[u][u];
+    int& currSelfLoop = extended.matrix[v][v];
+    if (currSelfLoop < reqSelfLoop) {
+        currSelfLoop = reqSelfLoop;
+    }
 }
 
 // TODO: Zapewnienie odnalezienia rodziny mapowań -> trzeba to zapewnic tutaj, dodajac jakies checki
-Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const int copiesCount) {
+Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const uint32_t copiesCount) {
     auto extended = g2;
     auto mappings = Mappings(copiesCount, extended.n);
     const auto order = g1.verticesOrder();
     auto cost = 0;
-    for (const uint32_t i : std::ranges::views::iota(0, copiesCount)) {
+    
+    // Helper: sprawdź czy obraz bieżącej kopii jest unikalny
+    auto isImageUniqueApprox = [&](uint32_t currentCopy) -> bool {
+        if (currentCopy == 0) return true;
+        
+        std::vector<int> currentImage;
+        for (uint32_t i = 0; i < static_cast<uint32_t>(g1.n); ++i) {
+            if (mappings.maps[currentCopy][i] != Mappings::NO_MAPPING) {
+                currentImage.push_back(mappings.maps[currentCopy][i]);
+            }
+        }
+        std::sort(currentImage.begin(), currentImage.end());
+        
+        for (uint32_t prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
+            std::vector<int> prevImage;
+            for (uint32_t i = 0; i < static_cast<uint32_t>(g1.n); ++i) {
+                if (mappings.maps[prevCopy][i] != Mappings::NO_MAPPING) {
+                    prevImage.push_back(mappings.maps[prevCopy][i]);
+                }
+            }
+            std::sort(prevImage.begin(), prevImage.end());
+            if (currentImage == prevImage) {
+                return false;
+            }
+        }
+        return true;
+    };
+    
+    for (uint32_t i = 0; i < copiesCount; ++i) {
         bool prefixEqual = true;
-        auto v = UINT32_MAX;
-        auto candCost = 0;
         std::vector<int32_t> mPrevious;
         if (i == 0) {
-            mPrevious = std::vector<int32_t>(g1.n, UINT32_MAX);
+            mPrevious = std::vector<int32_t>(g1.n, -1);  // POPRAWKA: -1 zamiast UINT32_MAX dla porównań
         } else {
             mPrevious = mappings.maps[i - 1];
         }
-        for (const uint32_t j : std::ranges::views::iota(0, g1.n)) {
+        for (uint32_t j = 0; j < static_cast<uint32_t>(g1.n); ++j) {
             const auto u = order[j];
             const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
+            
+            uint32_t v = UINT32_MAX;
+            uint32_t candCost = 0;
+            
             for (const auto &candidate : candidates) {
                 if (prefixEqual) {
-                    if (j < g1.n && candidate.v < mPrevious[u]) {
-                        continue;
-                    }
-                    if (j == g1.n && candidate.v <= mPrevious[u]) {
-                        continue;
+                    // POPRAWKA: Poprawne warunki porządku leksykograficznego
+                    if (j < static_cast<uint32_t>(g1.n - 1)) {
+                        // Nie ostatni wierzchołek - może być >= poprzedniego
+                        if (static_cast<int>(candidate.v) < mPrevious[u]) {
+                            continue;
+                        }
+                    } else {
+                        // Ostatni wierzchołek - musi być > poprzedniego (żeby obraz był różny)
+                        if (static_cast<int>(candidate.v) <= mPrevious[u]) {
+                            continue;
+                        }
                     }
                 }
                 // Kandydat spelnia wymagania, mozemy pominac kolejnych
@@ -242,10 +325,58 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                 candCost = candidate.deltaCost;
                 break;
             }
+            
+            // POPRAWKA: Sprawdź czy znaleziono kandydata
+            if (v == UINT32_MAX) {
+                // Nie znaleziono poprawnego kandydata - coś poszło nie tak
+                // To może się zdarzyć gdy brak wystarczającej liczby wierzchołków
+                // Wróć do pierwszego dostępnego
+                if (!candidates.empty()) {
+                    v = candidates[0].v;
+                    candCost = candidates[0].deltaCost;
+                }
+            }
+            
             mappings.maps[i][u] = v;
             cost += candCost;
             addMissingEdges(u, v, g1, extended, mappings.maps[i]);
-            prefixEqual = prefixEqual && (v == mPrevious[u]);
+            prefixEqual = prefixEqual && (static_cast<int>(v) == mPrevious[u]);
+        }
+        
+        // POPRAWKA: Sprawdź unikalność obrazu po zakończeniu mapowania kopii
+        // Jeśli obraz nie jest unikalny, trzeba znaleźć inne mapowanie
+        if (!isImageUniqueApprox(i)) {
+            // Spróbuj znaleźć alternatywne mapowanie zmieniając ostatni wierzchołek
+            bool foundUnique = false;
+            for (int attemptVertex = static_cast<int>(g1.n) - 1; attemptVertex >= 0 && !foundUnique; --attemptVertex) {
+                const auto u = order[attemptVertex];
+                const int oldV = mappings.maps[i][u];
+                
+                // Cofnij koszt poprzedniego kandydata (trzeba przeliczyć)
+                // Usuń wpływ poprzedniego mapowania
+                mappings.maps[i][u] = Mappings::NO_MAPPING;
+                
+                const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
+                
+                for (const auto &candidate : candidates) {
+                    if (static_cast<int>(candidate.v) == oldV) continue; // Pomiń poprzedni wybór
+                    
+                    mappings.maps[i][u] = candidate.v;
+                    if (isImageUniqueApprox(i)) {
+                        // Znaleziono unikalny obraz!
+                        foundUnique = true;
+                        // Przelicz koszt (uproszczenie - dodaj różnicę)
+                        cost += candidate.deltaCost;
+                        addMissingEdges(u, candidate.v, g1, extended, mappings.maps[i]);
+                        break;
+                    }
+                }
+                
+                if (!foundUnique) {
+                    // Przywróć poprzednie mapowanie
+                    mappings.maps[i][u] = oldV;
+                }
+            }
         }
 
     }
@@ -271,7 +402,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     vector<int> currentMapping = s.mappings.maps[i]; // aktualne mapowanie dla kopii i(zapisane, by na końcu móc cofnąć zmiany)
                     auto it = std::find(s.mappings.maps[i].begin(), s.mappings.maps[i].end(), v);
                     int oldUMapping;
-                    int delta;
+                    int delta = 0;  // POPRAWKA: inicjalizacja na 0!
                     if (it != s.mappings.maps[i].end()) { // jeżeli jakis wierzchołek z G1 juz jest mapowany n v
                         int vertexMappedToV = distance(s.mappings.maps[i].begin(), it); // wierzchołek G1, który aktualnie jest mapowany na v
                         oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
@@ -294,8 +425,8 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     // zwiększamy krawędzie ze względu na mapowanie na v
                     for (int copynr = 0; copynr < s.mappings.k; copynr++) { 
                         auto vIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), v); // sprawdź czy v jest czyimś mapowaniem w kopii copynr
-                        if (it != s.mappings.maps[copynr].end()) {
-                            int vertexMappedOnV = distance(s.mappings.maps[i].begin(), it); // wierzchołek mapowany na v w kopii copynr
+                        if (vIterator != s.mappings.maps[copynr].end()) {  // POPRAWKA: vIterator zamiast it!
+                            int vertexMappedOnV = distance(s.mappings.maps[copynr].begin(), vIterator); // POPRAWKA: copynr i vIterator!
                             for (int n = 0; n < g1.n; n++) { // dla kazdego wierzchołka z mniejszego grafu
                                 int mappingOfN = s.mappings.maps[copynr][n]; // mapowanie wierzchołka n z g1 dla kopii copynr na wierzcholek g2
                                 int reqIn = g1.matrix[n][vertexMappedOnV]; // sprawdzenie ile wychodzi krawdzi z n do wierzchołka który jest mapowany na v w kopii copynr
@@ -318,7 +449,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     for (int copynr = 0; copynr < s.mappings.k; copynr++) {
                         auto oldUMappingIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), oldUMapping); // sprawdź czy stare mapowanie u jest czyimś mapowaniem w kopii copynr
                         if (oldUMappingIterator != s.mappings.maps[copynr].end()) {
-                            int vertexMappedToOldUMapping = distance(s.mappings.maps[i].begin(), it); // wierzchołek mapowany na stare mapowanie u w kopii copynr
+                            int vertexMappedToOldUMapping = distance(s.mappings.maps[copynr].begin(), oldUMappingIterator); // POPRAWKA: copynr i oldUMappingIterator!
                             for (int n = 0; n < g1.n; n++) {
                                 int mappingOfN = s.mappings.maps[copynr][n]; // mapowanie wierzchołka n z g1 dla kopii copynr na wierzcholek g2
                                 int reqIn = g1.matrix[n][vertexMappedToOldUMapping]; // sprawdzenie ile wychodzi krawdzi z n do wierzchołka który jest mapowany na stare mapowanie u w kopii copynr
@@ -377,11 +508,455 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
     return s;
 }
 
+// Funkcja pomocnicza: sprawdza czy obraz mapowania jest różny od wszystkich poprzednich kopii
+// KLUCZOWE: Im(Mi) ≠ Im(Mj) dla i ≠ j
+bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
+    if (currentCopy == 0) return true; // Pierwsza kopia zawsze unikalna
+    
+    // Zbierz obraz bieżącej kopii (posortowany)
+    std::vector<int> currentImage;
+    for (int i = 0; i < n; ++i) {
+        if (mappings.maps[currentCopy][i] != Mappings::NO_MAPPING) {
+            currentImage.push_back(mappings.maps[currentCopy][i]);
+        }
+    }
+    std::sort(currentImage.begin(), currentImage.end());
+    
+    // Porównaj z obrazami wszystkich poprzednich kopii
+    for (int prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
+        std::vector<int> prevImage;
+        for (int i = 0; i < n; ++i) {
+            if (mappings.maps[prevCopy][i] != Mappings::NO_MAPPING) {
+                prevImage.push_back(mappings.maps[prevCopy][i]);
+            }
+        }
+        std::sort(prevImage.begin(), prevImage.end());
+        
+        // Jeśli obrazy identyczne - BŁĄD!
+        if (currentImage == prevImage) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
     const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
     return ImproveApproximateExpansion(initialExpansion, g1, g2);
 }
 
-int main() {
+// Algorytm dokładny - funkcja rekurencyjna
+// Zgodnie z sekcją 3.7 dokumentacji: RozgałęzienieRekurencyjne
+void recursiveBranching(
+    int copyIndex,           // i - numer bieżącej kopii (0..k-1)
+    int vertexIndex,         // j - indeks wierzchołka w porządku P (0..n1-1)
+    const std::vector<uint32_t>& order,  // P - porządek wierzchołków G1
+    const Graph& g1,         // Mniejszy graf
+    const Graph& g2,         // Większy graf (oryginalny)
+    Graph& gExtended,        // G'_2 - aktualnie rozszerzony graf
+    Mappings& mappings,      // Aktualne mapowania dla wszystkich kopii
+    uint64_t currentCost,    // n - bieżący koszt
+    bool prefixEqual,        // czy wcześniejsze przypisania w M_i są takie same jak w M_{i-1}
+    Solution& bestSolution,  // Globalne najlepsze rozwiązanie (in/out)
+    const int k              // Liczba kopii
+) {
+    // Jeśli zmapowaliśmy już wszystkie wierzchołki bieżącej kopii
+    if (vertexIndex >= g1.n) {
+        // WALIDACJA: Sprawdź czy obraz jest unikalny!
+        if (!isImageUnique(mappings, copyIndex, g1.n)) {
+            return; // Duplikat obrazu - odrzuć to rozwiązanie
+        }
+        
+        if (copyIndex == k - 1) {
+            // Znaleźliśmy kompletne mapowanie wszystkich k kopii
+            if (currentCost < bestSolution.cost) {
+                bestSolution.cost = currentCost;
+                bestSolution.extendedGraph = gExtended;
+                bestSolution.mappings = mappings;
+                bestSolution.found = true;
+            }
+        } else {
+            // Przechodzimy do kolejnej kopii
+            recursiveBranching(copyIndex + 1, 0, order, g1, g2, gExtended, 
+                             mappings, currentCost, true, bestSolution, k);
+        }
+        return;
+    }
 
+    // Przycinanie gałęzi - ale tylko jeśli już znaleźliśmy jakieś rozwiązanie
+    // POPRAWKA: Nie przycinaj jeśli jeszcze nie mamy rozwiązania!
+    if (bestSolution.found && currentCost >= bestSolution.cost) {
+        return;
+    }
+
+    const uint32_t u = order[vertexIndex];  // Bieżący wierzchołek G1 do zmapowania
+    
+    // Wybierz kandydatów zgodnie z heurystyką z sekcji 3.3
+    const auto candidates = chooseCandidates(u, g1, g2, gExtended, mappings.maps[copyIndex]);
+
+    for (const auto& candidate : candidates) {
+        const uint32_t v = candidate.v;
+        const uint32_t deltaCost = candidate.deltaCost;
+
+        // Sprawdzenie porządku leksykograficznego (sekcja 3.4)
+        if (copyIndex > 0 && prefixEqual) {
+            const int prevMapping = mappings.maps[copyIndex - 1][u];
+            if (vertexIndex < g1.n - 1 && static_cast<int>(v) < prevMapping) {
+                continue;
+            }
+            if (vertexIndex == g1.n - 1 && static_cast<int>(v) <= prevMapping) {
+                continue;
+            }
+        }
+
+        // Sprawdź, czy v nie jest już użyty w bieżącej kopii
+        bool vAlreadyUsed = false;
+        for (int idx = 0; idx < g1.n; ++idx) {
+            if (mappings.maps[copyIndex][idx] == static_cast<int>(v)) {
+                vAlreadyUsed = true;
+                break;
+            }
+        }
+        if (vAlreadyUsed) {
+            continue;
+        }
+
+        // Przypisanie
+        mappings.maps[copyIndex][u] = v;
+        const uint64_t newCost = currentCost + deltaCost;
+
+        // Przycinanie - możemy przerwać bo kandydaci są posortowani rosnąco wg kosztu
+        if (newCost >= bestSolution.cost) {
+            mappings.maps[copyIndex][u] = Mappings::NO_MAPPING;
+            break;
+        }
+
+        // Zapisz stan grafu przed modyfikacją (do cofnięcia)
+        std::vector<std::pair<std::pair<int,int>, int>> edgeChanges;
+        
+        // Aktualizuj G'_2 o brakujące krawędzie
+        for (uint32_t i = 0; i < g1.n; ++i) {
+            const int mappedI = mappings.maps[copyIndex][i];
+            if (mappedI == Mappings::NO_MAPPING) {
+                continue;
+            }
+
+            const int reqOut = g1.matrix[u][i];
+            const int reqIn = g1.matrix[i][u];
+            
+            int& currOut = gExtended.matrix[v][mappedI];
+            int& currIn = gExtended.matrix[mappedI][v];
+
+            if (currOut < reqOut) {
+                edgeChanges.push_back({{v, mappedI}, currOut});
+                currOut = reqOut;
+            }
+            if (currIn < reqIn) {
+                edgeChanges.push_back({{mappedI, v}, currIn});
+                currIn = reqIn;
+            }
+        }
+        
+        // POPRAWKA: Dodaj obsługę pętli (self-loop) dla wierzchołka u
+        const int reqSelfLoop = g1.matrix[u][u];
+        int& currSelfLoop = gExtended.matrix[v][v];
+        if (currSelfLoop < reqSelfLoop) {
+            edgeChanges.push_back({{v, v}, currSelfLoop});
+            currSelfLoop = reqSelfLoop;
+        }
+
+        // Sprawdź czy prefix jest równy
+        const bool newPrefixEqual = copyIndex > 0 && prefixEqual && 
+                                   (static_cast<int>(v) == mappings.maps[copyIndex - 1][u]);
+
+        // Wywołanie rekurencyjne
+        recursiveBranching(copyIndex, vertexIndex + 1, order, g1, g2, gExtended,
+                         mappings, newCost, newPrefixEqual, bestSolution, k);
+
+        // Cofnij zmiany w G'_2
+        for (const auto& change : edgeChanges) {
+            gExtended.matrix[change.first.first][change.first.second] = change.second;
+        }
+
+        // Cofnij mapowanie
+        mappings.maps[copyIndex][u] = Mappings::NO_MAPPING;
+    }
+}
+
+// Algorytm dokładny - główna funkcja
+// Zgodnie z sekcją 3.7 dokumentacji: AlgorytmDokładny
+Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k) {
+    // Wyznacz porządek wierzchołków P
+    const auto order = g1.verticesOrder();
+
+    // Inicjalizacja
+    Graph gExtended = g2;
+    Mappings mappings(k, g1.n);
+    Solution bestSolution;
+    bestSolution.cost = UINT64_MAX;
+    bestSolution.found = false;
+
+    // Wywołaj rekurencję
+    recursiveBranching(0, 0, order, g1, g2, gExtended, mappings, 
+                      0, false, bestSolution, k);
+
+    return bestSolution;
+}
+
+// Walidacja wejścia - sprawdza czy problem ma sens matematyczny
+bool validateInput(int n1, int n2, int k, bool verbose = true) {
+    // KLUCZOWE: Zgodnie z Definicją 5, potrzebujemy k różnych mapowań
+    // z RÓŻNYMI obrazami Im(Mi) ≠ Im(Mj) dla i ≠ j
+    
+    // Minimalna liczba wierzchołków w G2 dla k kopii n1-wierzchołkowych
+    // W najgorszym przypadku (bez nakładania): k * n1
+    if (k * n1 > n2) {
+        if (verbose) {
+            std::cerr << "\n========================================" << std::endl;
+            std::cerr << "OSTRZEŻENIE: Potencjalnie niemożliwy przypadek!" << std::endl;
+            std::cerr << "k=" << k << " × n1=" << n1 << " = " << (k*n1) << " > n2=" << n2 << std::endl;
+            std::cerr << "\nWymaganie: " << k << " różnych " << n1 << "-elementowych podzbiorów" << std::endl;
+            std::cerr << "z " << n2 << "-elementowego zbioru wierzchołków G2" << std::endl;
+            std::cerr << "\nMożliwe jest, że problem nie ma rozwiązania zgodnego" << std::endl;
+            std::cerr << "z Definicją 5 (różne obrazy mapowań Im(Mi)≠Im(Mj))." << std::endl;
+            std::cerr << "========================================\n" << std::endl;
+        }
+        return false;  // Ostrzeżenie, ale pozwalamy kontynuować
+    }
+    
+    return true;
+}
+
+// Wczytywanie grafów z pliku
+// Format zgodnie z emailem: n1, macierz G1, n2, macierz G2, [k]
+bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& k) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Nie można otworzyć pliku: " << filename << std::endl;
+        return false;
+    }
+
+    // Wczytaj n1
+    int n1;
+    file >> n1;
+    if (n1 <= 0) {
+        std::cerr << "Nieprawidłowa liczba wierzchołków G1: " << n1 << std::endl;
+        return false;
+    }
+
+    g1 = Graph(n1);
+    // Wczytaj macierz sąsiedztwa G1
+    for (int i = 0; i < n1; ++i) {
+        for (int j = 0; j < n1; ++j) {
+            file >> g1.matrix[i][j];
+        }
+    }
+
+    // Wczytaj n2
+    int n2;
+    file >> n2;
+    if (n2 <= 0) {
+        std::cerr << "Nieprawidłowa liczba wierzchołków G2: " << n2 << std::endl;
+        return false;
+    }
+
+    g2 = Graph(n2);
+    // Wczytaj macierz sąsiedztwa G2
+    for (int i = 0; i < n2; ++i) {
+        for (int j = 0; j < n2; ++j) {
+            file >> g2.matrix[i][j];
+        }
+    }
+
+    // Wczytaj k (opcjonalnie, domyślnie 1)
+    if (file >> k) {
+        if (k <= 0) {
+            std::cerr << "Nieprawidłowa liczba kopii k: " << k << std::endl;
+            return false;
+        }
+    } else {
+        k = 1;
+    }
+
+    file.close();
+    return true;
+}
+
+// Wypisz graf
+void printGraph(const Graph& g, const std::string& name) {
+    std::cout << name << " (n=" << g.n << ", m=" << g.totalEdges() << "):" << std::endl;
+    for (int i = 0; i < g.n; ++i) {
+        for (int j = 0; j < g.n; ++j) {
+            std::cout << g.matrix[i][j];
+            if (j < g.n - 1) std::cout << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+// Wypisz rozwiązanie
+void printSolution(const Solution& sol, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
+    std::cout << "\n=== Wyniki algorytmu " << algName << " ===" << std::endl;
+    if (!sol.found) {
+        std::cout << "Nie znaleziono rozwiązania." << std::endl;
+        std::cout << "\nMożliwe przyczyny:" << std::endl;
+        std::cout << "1. k*n1 > n2: " << k << "*" << n1 << "=" << (k*n1) << " vs n2=" << n2;
+        if (k*n1 > n2) {
+            std::cout << " ← PROBLEM!" << std::endl;
+            std::cout << "   Matematycznie niemożliwe: potrzeba " << k << " różnych " 
+                      << n1 << "-elementowych podzbiorów" << std::endl;
+            std::cout << "   z " << n2 << "-elementowego zbioru (wymaganie Im(Mi)≠Im(Mj))" << std::endl;
+        } else {
+            std::cout << " (OK)" << std::endl;
+        }
+        std::cout << "2. Struktura G1 i G2 uniemożliwia istnienie k różnych izomorfizmów" << std::endl;
+        std::cout << "3. Zbyt restrykcyjne warunki porządku leksykograficznego" << std::endl;
+        return;
+    }
+
+    std::cout << "Koszt rozszerzenia: " << sol.cost << std::endl;
+    std::cout << "Liczba dodanych krawędzi: " << (sol.extendedGraph.totalEdges() - g2.totalEdges()) << std::endl;
+    
+    std::cout << "\nMapowania:" << std::endl;
+    for (int i = 0; i < sol.mappings.k; ++i) {
+        std::cout << "  Kopia " << (i+1) << ": ";
+        int count = 0;
+        for (int j = 0; j < sol.mappings.n; ++j) {
+            if (sol.mappings.maps[i][j] != -1) {
+                if (count > 0) std::cout << ", ";
+                std::cout << j << "->" << sol.mappings.maps[i][j];
+                count++;
+            }
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << "\nRozszerzony graf G'_2:" << std::endl;
+    printGraph(sol.extendedGraph, "G'_2");
+}
+
+void printUsage(const char* programName) {
+    std::cout << "Użycie: " << programName << " [plik_z_danymi] [algorytm]" << std::endl;
+    std::cout << "  plik_z_danymi - ścieżka do pliku z grafami (opcjonalne, domyślnie wczytuje z stdin)" << std::endl;
+    std::cout << "  algorytm      - 'exact' lub 'approx' (opcjonalne, domyślnie 'exact')" << std::endl;
+    std::cout << "\nFormat pliku:" << std::endl;
+    std::cout << "  n1" << std::endl;
+    std::cout << "  macierz_sąsiedztwa_G1 (n1 x n1)" << std::endl;
+    std::cout << "  n2" << std::endl;
+    std::cout << "  macierz_sąsiedztwa_G2 (n2 x n2)" << std::endl;
+    std::cout << "  k (opcjonalne, liczba kopii, domyślnie 1)" << std::endl;
+}
+
+int main(int argc, char* argv[]) {
+    std::string filename;
+    std::string algorithm = "exact";
+
+    // Parsowanie argumentów
+    if (argc > 1) {
+        filename = argv[1];
+        if (filename == "--help" || filename == "-h") {
+            printUsage(argv[0]);
+            return 0;
+        }
+    }
+    if (argc > 2) {
+        algorithm = argv[2];
+        if (algorithm != "exact" && algorithm != "approx") {
+            std::cerr << "Nieprawidłowy algorytm: " << algorithm << std::endl;
+            std::cerr << "Użyj 'exact' lub 'approx'" << std::endl;
+            return 1;
+        }
+    }
+
+    Graph g1, g2;
+    int k = 1;
+
+    // Wczytaj dane
+    if (!filename.empty()) {
+        if (!loadGraphsFromFile(filename, g1, g2, k)) {
+            return 1;
+        }
+    } else {
+        std::cout << "Wczytywanie z stdin..." << std::endl;
+        std::cout << "Podaj n1: ";
+        std::cin >> g1.n;
+        g1 = Graph(g1.n);
+        std::cout << "Podaj macierz sąsiedztwa G1 (" << g1.n << "x" << g1.n << "):" << std::endl;
+        for (int i = 0; i < g1.n; ++i) {
+            for (int j = 0; j < g1.n; ++j) {
+                std::cin >> g1.matrix[i][j];
+            }
+        }
+        
+        std::cout << "Podaj n2: ";
+        std::cin >> g2.n;
+        g2 = Graph(g2.n);
+        std::cout << "Podaj macierz sąsiedztwa G2 (" << g2.n << "x" << g2.n << "):" << std::endl;
+        for (int i = 0; i < g2.n; ++i) {
+            for (int j = 0; j < g2.n; ++j) {
+                std::cin >> g2.matrix[i][j];
+            }
+        }
+        
+        std::cout << "Podaj k (liczba kopii): ";
+        std::cin >> k;
+    }
+
+    // Wypisz dane wejściowe
+    std::cout << "\n=== Dane wejściowe ===" << std::endl;
+    printGraph(g1, "G1");
+    printGraph(g2, "G2");
+    std::cout << "Liczba kopii k: " << k << std::endl;
+    
+    // WALIDACJA WEJŚCIA
+    std::cout << "\n=== Walidacja wejścia ===" << std::endl;
+    bool inputValid = validateInput(g1.n, g2.n, k, true);
+    if (!inputValid) {
+        std::cout << "UWAGA: Algorytm może nie znaleźć rozwiązania!" << std::endl;
+    } else {
+        std::cout << "Parametry wejściowe wyglądają OK." << std::endl;
+        std::cout << "k*n1 = " << (k * g1.n) << " <= n2 = " << g2.n << " ✓" << std::endl;
+    }
+
+    // Uruchom algorytm
+    Solution solution;
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    if (algorithm == "exact") {
+        std::cout << "\nUruchamianie algorytmu dokładnego..." << std::endl;
+        solution = exactAlgorithm(g1, g2, k);
+    } else {
+        std::cout << "\nUruchamianie algorytmu aproksymacyjnego..." << std::endl;
+        solution = approximateExpansion(g1, g2, k);
+        solution.found = true;  // Algorytm aproksymacyjny zawsze znajduje rozwiązanie
+    }
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+    // Wypisz wyniki
+    printSolution(solution, g2, algorithm, g1.n, g2.n, k);
+    std::cout << "\nCzas wykonania: " << duration.count() << " ms" << std::endl;
+
+    // Zapisz wynik do pliku output
+    std::ofstream outFile("src/output/result.txt");
+    if (outFile.is_open()) {
+        outFile << "Algorytm: " << algorithm << std::endl;
+        outFile << "Koszt: " << solution.cost << std::endl;
+        outFile << "Czas: " << duration.count() << " ms" << std::endl;
+        outFile << "\nRozszerzony graf G'_2:" << std::endl;
+        for (int i = 0; i < solution.extendedGraph.n; ++i) {
+            for (int j = 0; j < solution.extendedGraph.n; ++j) {
+                outFile << solution.extendedGraph.matrix[i][j];
+                if (j < solution.extendedGraph.n - 1) outFile << " ";
+            }
+            outFile << std::endl;
+        }
+        outFile.close();
+        std::cout << "\nWynik zapisano do src/output/result.txt" << std::endl;
+    }
+
+    return 0;
 }

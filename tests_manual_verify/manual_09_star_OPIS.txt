@@ -1,0 +1,14 @@
+TEST 9: Gwiazda S3 (hub z 3 krawędziami)
+G1: Wierzchołek 0 połączony z 1,2,3 (gwiazda)
+    Krawędzie: 0→1, 0→2, 0→3
+G2: Tylko jedna krawędź 0→1
+k=1
+
+RĘCZNE OBLICZENIE:
+- Mapowanie: M(0)=0, M(1)=1, M(2)=2, M(3)=3
+- G1 wymaga:
+  * 0→1 ✓ (jest w G2)
+  * 0→2 (trzeba dodać)
+  * 0→3 (trzeba dodać)
+
+OCZEKIWANY KOSZT: 2
