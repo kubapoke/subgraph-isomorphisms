@@ -15,7 +15,12 @@ import subprocess
 import os
 import re
 import time
+import math
 from typing import List, Tuple, Dict, Optional
+
+def nCr(n, r):
+    if r > n: return 0
+    return math.comb(n, r)
 
 def run_test(filepath: str, algorithm: str) -> Tuple[bool, Optional[int], float, str]:
     """Zwraca (sukces, koszt, czas, błąd)"""
@@ -159,12 +164,13 @@ def main():
                     results[alg]['no_solution'] += 1
                     no_sol_str = f"  {alg:6s}: NO_SOLUTION"
                     
-                    # ANALIZA: k*n1 vs n2
+                    # ANALIZA: k vs C(n2, n1)
                     if n1 and n2 and k:
-                        if k * n1 > n2:
-                            no_sol_str += f" [OK] (k*n1={k*n1} > n2={n2} NIEMOZLIWE)"
+                        max_copies = nCr(n2, n1)
+                        if k > max_copies:
+                            no_sol_str += f" [OK] (k={k} > C({n2},{n1})={max_copies} NIEMOZLIWE)"
                         else:
-                            no_sol_str += f" [?] (k*n1={k*n1} <= n2={n2} MOZLIWE)"
+                            no_sol_str += f" [?] (k={k} <= C({n2},{n1})={max_copies} MOZLIWE)"
                     
                     print(no_sol_str)
                     results[alg]['no_sol_cases'].append(f"{category}/{filename}")
@@ -184,8 +190,10 @@ def main():
             approx_ok, _, approx_err = approx_result
             
             if not exact_ok and approx_ok and "Nie znaleziono" in exact_err:
-                if n1 and n2 and k and k * n1 > n2:
-                    print(f"  [!] APPROX narusza Def5 (zwraca rozwiazanie gdy k*n1 > n2)")
+                if n1 and n2 and k:
+                    max_copies = nCr(n2, n1)
+                    if k > max_copies:
+                        print(f"  [!] APPROX narusza Def5 (zwraca rozwiazanie gdy k > C(n2,n1))")
     
     # ANALIZA NO_SOLUTION
     print("\n" + "=" * 80)
@@ -200,18 +208,19 @@ def main():
         
         for item in no_solution_info:
             if item['n1'] and item['n2'] and item['k']:
-                if item['k'] * item['n1'] > item['n2']:
+                max_copies = nCr(item['n2'], item['n1'])
+                if item['k'] > max_copies:
                     status = "[OK] NIEMOZLIWE"
                     impossible_count += 1
                 else:
                     status = "[?] MOZLIWE (sprawdzic!)"
                     possible_count += 1
                 print(f"  [{item['alg']:6s}] {item['file']}")
-                print(f"           k*n1={item['k']}*{item['n1']}={item['k']*item['n1']} vs n2={item['n2']} -> {status}")
+                print(f"           k={item['k']} vs C({item['n2']},{item['n1']})={max_copies} -> {status}")
         
         print(f"\nPodsumowanie NO_SOLUTION:")
-        print(f"  Matematycznie niemozliwe (k*n1 > n2): {impossible_count}")
-        print(f"  Matematycznie mozliwe (k*n1 <= n2):    {possible_count}")
+        print(f"  Matematycznie niemozliwe (k > C(n2,n1)): {impossible_count}")
+        print(f"  Matematycznie mozliwe (k <= C(n2,n1)):    {possible_count}")
         if possible_count > 0:
             print(f"  [!] {possible_count} przypadkow wymaga recznej weryfikacji!")
     else:
@@ -345,7 +354,7 @@ def main():
 [OK] Petle (self-loops): obslugiwane w countCost/addMissingEdges
 [OK] Wysokie krotnosci: testowane (krotnosci 1-15)
 [OK] Porzadek leksykograficzny: zaimplementowany w exact
-[OK] k*n1 <= n2: walidowane w validateInput()
+[OK] k*n1 <= n2: walidowane w validateInput() (jako ostrzezenie o overlappingu)
     """)
     
     # FINALNA OCENA
@@ -368,7 +377,7 @@ def main():
     # Sprawdź czy NO_SOLUTION to błędy czy feature
     impossible_in_no_sol = sum(1 for item in no_solution_info 
                                if item['n1'] and item['n2'] and item['k'] 
-                               and item['k'] * item['n1'] > item['n2'])
+                               and item['k'] > nCr(item['n2'], item['n1']))
     
     if total_failed == 0:
         print("\n[OK] Wszystkie testy przeszly lub sa prawidlowo odrzucone!")

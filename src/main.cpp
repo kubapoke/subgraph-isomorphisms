@@ -541,6 +541,18 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
 
     }
 
+    // POPRAWKA: Przelicz koszt od zera na samym końcu, aby uniknąć błędów akumulacji (drift)
+    // w skomplikowanej logice delta.
+    uint64_t trueCost = 0;
+    for(int i=0; i<s.extendedGraph.n; ++i) {
+        for(int j=0; j<s.extendedGraph.n; ++j) {
+            if (s.extendedGraph.matrix[i][j] > g2.matrix[i][j]) {
+                trueCost += (s.extendedGraph.matrix[i][j] - g2.matrix[i][j]);
+            }
+        }
+    }
+    s.cost = trueCost;
+
     return s;
 }
 
@@ -593,12 +605,7 @@ uint64_t binomialCoefficient(int n, int k) {
 }
 
 Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
-    // Definicja 5: Im(Mi) ≠ Im(Mj) oznacza RÓŻNE ZBIORY
-    // Ale zbiory mogą się przecinać! Wymagane jest tylko Im(Mi) ≠ Im(Mj) jako całość.
-    // Więc k*n1 > n2 jest matematycznie możliwe (obrazy mogą się pokrywać)
-    
     const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
-    // POPRAWKA: Ustaw found = true dla initialExpansion (bo approx zawsze znajduje coś jeśli k*n1 <= n2)
     auto result = initialExpansion;
     result.found = true;
     return ImproveApproximateExpansion(result, g1, g2);
@@ -798,36 +805,23 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k) {
     return bestSolution;
 }
 
-// Walidacja wejścia - sprawdza czy problem ma sens matematyczny
+// Walidacja wejścia - wyświetla informacje pomocnicze
 bool validateInput(int n1, int n2, int k, bool verbose = true) {
-    // UWAGA: Im(Mi) ≠ Im(Mj) oznacza różne ZBIORY, ale mogą się przecinać!
-    // Np. {1,2} ≠ {1,3} - różne zbiory mimo wspólnego elementu
-    // Więc k*n1 > n2 NIE WYKLUCZA rozwiązania (obrazy mogą się pokrywać)
-    
-    // Jednak w praktyce k*n1 > n2 często jest niemożliwe ze względu na:
-    // - różnowartościowość każdego Mi (każde mapowanie używa n1 RÓŻNYCH wierzchołków)
-    // - wymaganie Im(Mi) ≠ Im(Mj)
+    const uint64_t maxDifferentMappings = binomialCoefficient(n2, n1);
     
     if (verbose) {
-        const uint64_t maxDifferentMappings = binomialCoefficient(n2, n1);
         std::cout << "Walidacja: k=" << k << ", n1=" << n1 << ", n2=" << n2 << std::endl;
-        
-        if (k * n1 > n2) {
-            std::cout << "  UWAGA: k*n1 = " << k*n1 << " > n2 = " << n2 << std::endl;
-            std::cout << "  Obrazy mapowań muszą się pokrywać (Im(Mi) mogą mieć wspólne elementy)" << std::endl;
-            std::cout << "  To często utrudnia/uniemożliwia znalezienie rozwiązania." << std::endl;
-        } else {
-            std::cout << "  k*n1 = " << k*n1 << " <= n2 = " << n2 << " ✓" << std::endl;
-        }
-        
         std::cout << "  C(n2,n1) = C(" << n2 << "," << n1 << ") = " << maxDifferentMappings << std::endl;
-        if (static_cast<uint64_t>(k) > maxDifferentMappings) {
-            std::cout << "  UWAGA: k=" << k << " > C(n2,n1)=" << maxDifferentMappings << std::endl;
-            std::cout << "  Potencjalnie niemożliwe - brak wystarczającej liczby różnych podzbiorów!" << std::endl;
+    }
+
+    if (static_cast<uint64_t>(k) > maxDifferentMappings) {
+        if (verbose) {
+            std::cout << "  BŁĄD: k > C(n2,n1) - matematycznie niemożliwe!" << std::endl;
         }
+        return false;
     }
     
-    return true; // Pozwalamy algorytmowi spróbować
+    return true;
 }
 
 // Wczytywanie grafów z pliku
@@ -917,10 +911,10 @@ void printSolution(const Solution& sol, const Graph& g2, const std::string& algN
         
         if (k * n1 > n2) {
             std::cout << "2. k*n1 > n2: " << k << "*" << n1 << "=" << k*n1 << " > " << n2 << std::endl;
-            std::cout << "   Obrazy mapowań muszą się pokrywać - utrudnia znalezienie " << k << " różnych Im(Mi)" << std::endl;
+            std::cout << "   Niewystarczająca liczba wierzchołków dla rozłącznych obrazów" << std::endl;
         }
         
-        std::cout << "3. Struktura G1 i G2 uniemożliwia istnienie k różnych izomorfizmów" << std::endl;
+        std::cout << "3. Struktura grafów uniemożliwia istnienie k różnych izomorfizmów" << std::endl;
         std::cout << "4. Zbyt restrykcyjne warunki krotności krawędzi" << std::endl;
         return;
     }
@@ -1023,7 +1017,9 @@ int main(int argc, char* argv[]) {
     std::cout << "\n=== Walidacja wejścia ===" << std::endl;
     bool inputValid = validateInput(g1.n, g2.n, k, true);
     if (!inputValid) {
-        std::cout << "UWAGA: Algorytm może nie znaleźć rozwiązania!" << std::endl;
+        std::cout << "BŁĄD KRYTYCZNY: Parametry wejściowe są niepoprawne (k > C(n2,n1))." << std::endl;
+        std::cout << "Prerywanie działania programu." << std::endl;
+        return 1;
     } else {
         std::cout << "Parametry wejściowe wyglądają OK." << std::endl;
         const uint64_t maxMappings = binomialCoefficient(g2.n, g1.n);
