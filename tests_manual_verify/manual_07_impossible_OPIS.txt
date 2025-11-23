@@ -1,12 +1,12 @@
-TEST 7: Przypadek NIEMOŻLIWY (k*n1 > n2)
+TEST 7: Przypadek NIEMOŻLIWY (k > C(n2, n1))
 G1: Ścieżka 0→1→2 (3 wierzchołki)
 G2: Pusty (3 wierzchołki)
 k=2
 
 RĘCZNE OBLICZENIE:
-- k*n1 = 2*3 = 6 > 3 = n2
 - Potrzeba 2 różne 3-elementowe podzbiory z 3-elementowego zbioru
-- Istnieje tylko 1 taki podzbiór: {0,1,2}
+- Liczba kombinacji C(3,3) = 1
+- k=2 > 1
 - MATEMATYCZNIE NIEMOŻLIWE!
 
 OCZEKIWANY WYNIK: NO_SOLUTION (exact), lub naruszenie Def5 (approx)

@@ -62,11 +62,13 @@ for i in range(1, 11):
     matrix2 = generate_graph_matrix(n2, 0.5, max_weight=100)
     save_test(os.path.join(output_dir, f"chaos_weights_{i:02d}.txt"), k, n1, matrix1, n2, matrix2)
 
-# 4. "Niemożliwe" (k * n1 > n2 lub blisko granicy)
+# 4. "Niemożliwe" (k > C(n2, n1) lub blisko granicy)
 for i in range(1, 11):
     n1 = random.randint(4, 6)
     n2 = random.randint(n1, 12)
     # Próbujemy wymusić k tak, żeby było ciasno lub niemożliwe
+    # C(n2, n1) może być duże, ale dla małych n2/n1 może być małe.
+    # Używamy heurystyki n2 // n1 jako punktu odniesienia dla "dużego k"
     max_k = n2 // n1
     k = random.randint(max_k, max_k + 2) 
     matrix1 = generate_graph_matrix(n1, 0.4)
