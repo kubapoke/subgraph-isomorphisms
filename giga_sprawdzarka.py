@@ -241,7 +241,7 @@ def run_test_with_validation(filepath: str, algorithm: str) -> Dict:
                     return {'status': 'NO_SOLUTION', 'msg': 'Nie znaleziono rozwiązania (choć może istnieć)', 'time': elapsed}
             
             # Obsługa błędu krytycznego (k > C(n2,n1))
-            if "BŁĄD KRYTYCZNY" in result.stdout or "matematycznie niemożliwe" in result.stdout:
+            if any(x in result.stdout for x in ["BŁĄD KRYTYCZNY", "BlaD KRYTYCZNY", "Blad KRYTYCZNY", "matematycznie niemożliwe", "matematycznie niemozliwe"]):
                  return {'status': 'OK', 'msg': 'Poprawnie wykryto niemożliwe k (k > C(n2,n1))', 'time': elapsed}
 
             return {'status': 'FAIL', 'msg': 'Błąd parsowania wyjścia', 'time': elapsed}

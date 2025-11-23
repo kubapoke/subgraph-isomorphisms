@@ -909,11 +909,6 @@ void printSolution(const Solution& sol, const Graph& g2, const std::string& algN
             std::cout << " (OK)" << std::endl;
         }
         
-        if (k * n1 > n2) {
-            std::cout << "2. k*n1 > n2: " << k << "*" << n1 << "=" << k*n1 << " > " << n2 << std::endl;
-            std::cout << "   Niewystarczajaca liczba wierzcholkow dla rozlacznych obrazow" << std::endl;
-        }
-        
         std::cout << "3. Struktura grafow uniemozliwia istnienie k roznych izomorfizmow" << std::endl;
         std::cout << "4. Zbyt restrykcyjne warunki krotnosci krawedzi" << std::endl;
         return;
@@ -1036,8 +1031,6 @@ int main(int argc, char* argv[]) {
     } else {
         std::cout << "\nUruchamianie algorytmu aproksymacyjnego..." << std::endl;
         solution = approximateExpansion(g1, g2, k);
-        // POPRAWKA: Approx moze nie znalezc rozwiazania (gdy k*n1 > n2)
-        // solution.found jest juz ustawione przez approximateExpansion
     }
     
     auto endTime = std::chrono::high_resolution_clock::now();
