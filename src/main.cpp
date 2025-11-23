@@ -356,14 +356,13 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         // POPRAWKA: Sprawdź unikalność obrazu po zakończeniu mapowania kopii
         // Jeśli obraz nie jest unikalny, trzeba znaleźć inne mapowanie
         if (!isImageUniqueApprox(i)) {
-            // Spróbuj znaleźć alternatywne mapowanie zmieniając ostatni wierzchołek
+            // Spróbuj znaleźć alternatywne mapowanie zmieniając kolejne wierzchołki od końca
             bool foundUnique = false;
             for (int attemptVertex = static_cast<int>(g1.n) - 1; attemptVertex >= 0 && !foundUnique; --attemptVertex) {
                 const auto u = order[attemptVertex];
                 const int oldV = mappings.maps[i][u];
                 
-                // Cofnij koszt poprzedniego kandydata (trzeba przeliczyć)
-                // Usuń wpływ poprzedniego mapowania
+                // Cofnij mapowanie tego wierzchołka
                 mappings.maps[i][u] = Mappings::NO_MAPPING;
                 
                 const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
@@ -372,12 +371,12 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                     if (static_cast<int>(candidate.v) == oldV) continue; // Pomiń poprzedni wybór
                     
                     mappings.maps[i][u] = candidate.v;
+                    addMissingEdges(u, candidate.v, g1, extended, mappings.maps[i]);
+                    
                     if (isImageUniqueApprox(i)) {
                         // Znaleziono unikalny obraz!
                         foundUnique = true;
-                        // Przelicz koszt (uproszczenie - dodaj różnicę)
                         cost += candidate.deltaCost;
-                        addMissingEdges(u, candidate.v, g1, extended, mappings.maps[i]);
                         break;
                     }
                 }
@@ -385,12 +384,23 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                 if (!foundUnique) {
                     // Przywróć poprzednie mapowanie
                     mappings.maps[i][u] = oldV;
+                    addMissingEdges(u, oldV, g1, extended, mappings.maps[i]);
                 }
+            }
+            
+            // Jeśli nadal nie znaleziono unikalnego obrazu, zwróć NO_SOLUTION
+            if (!foundUnique) {
+                Solution noSolution;
+                noSolution.found = false;
+                noSolution.cost = UINT64_MAX;
+                return noSolution;
             }
         }
 
     }
-    return Solution(std::move(extended), std::move(mappings), cost);
+    auto solution = Solution(std::move(extended), std::move(mappings), cost);
+    solution.found = true; // Udało się znaleźć mapowania
+    return solution;
 }
 
 
@@ -484,7 +494,13 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     }
 
                     vector<int> newMapping = s.mappings.maps[i];
-                    set<int> vset(s.mappings.maps[i].begin(), s.mappings.maps[i].end());
+                    // POPRAWKA: Odfiltruj NO_MAPPING przed utworzeniem zbioru!
+                    set<int> vset;
+                    for (int val : s.mappings.maps[i]) {
+                        if (val != Mappings::NO_MAPPING) {
+                            vset.insert(val);
+                        }
+                    }
                     s.mappings.maps[i] = currentMapping;
 
                     if (delta < bestDelta) {
@@ -492,7 +508,12 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                         // sprawdzenie czy żadne inne mapowanie nie zawiera dokladnie tych samych wiezrchołków
                         bool isMappingValid = true;
                         for (const auto& mp : s.mappings.maps) {
-                            std::set<int> mpSet(mp.begin(), mp.end());
+                            std::set<int> mpSet;
+                            for (int val : mp) {
+                                if (val != Mappings::NO_MAPPING) {
+                                    mpSet.insert(val);
+                                }
+                            }
                             if (mpSet == vset) {
                                 isMappingValid = false;
                                 break;
@@ -556,16 +577,25 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
     return true;
 }
 
-Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
-    // POPRAWKA: Sprawdź warunek k*n1 <= n2 (Definicja 5)
-    // Jeśli k*n1 > n2, matematycznie niemożliwe jest znalezienie k różnych mapowań
-    // z różnymi obrazami Im(Mi) ≠ Im(Mj)
-    if (copies_count * g1.n > static_cast<uint32_t>(g2.n)) {
-        Solution noSolution;
-        noSolution.found = false;
-        noSolution.cost = UINT64_MAX;
-        return noSolution;
+// Funkcja pomocnicza: oblicza C(n, k) = n! / (k! * (n-k)!)
+// Używana do sprawdzenia czy jest wystarczająco dużo różnych n1-elementowych podzbiorów
+uint64_t binomialCoefficient(int n, int k) {
+    if (k > n) return 0;
+    if (k == 0 || k == n) return 1;
+    if (k > n - k) k = n - k; // C(n,k) = C(n,n-k)
+    
+    uint64_t result = 1;
+    for (int i = 0; i < k; ++i) {
+        result *= (n - i);
+        result /= (i + 1);
     }
+    return result;
+}
+
+Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
+    // Definicja 5: Im(Mi) ≠ Im(Mj) oznacza RÓŻNE ZBIORY
+    // Ale zbiory mogą się przecinać! Wymagane jest tylko Im(Mi) ≠ Im(Mj) jako całość.
+    // Więc k*n1 > n2 jest matematycznie możliwe (obrazy mogą się pokrywać)
     
     const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
     // POPRAWKA: Ustaw found = true dla initialExpansion (bo approx zawsze znajduje coś jeśli k*n1 <= n2)
@@ -638,6 +668,39 @@ void recursiveBranching(
             // to ten MUSI być > (żeby całe mapowanie było różne)
             if (vertexIndex == g1.n - 1 && static_cast<int>(v) <= prevMapping) {
                 continue;
+            }
+        }
+        
+        // POPRAWKA: Wcześniejsze sprawdzenie czy tworzymy duplikat obrazu
+        // Budujemy tymczasowy obraz bieżącego mapowania z nowym v
+        if (copyIndex > 0 && vertexIndex == g1.n - 1) {
+            std::vector<int> currentImage;
+            for (int idx = 0; idx < g1.n; ++idx) {
+                if (idx == static_cast<int>(u)) {
+                    currentImage.push_back(v);
+                } else if (mappings.maps[copyIndex][idx] != Mappings::NO_MAPPING) {
+                    currentImage.push_back(mappings.maps[copyIndex][idx]);
+                }
+            }
+            std::sort(currentImage.begin(), currentImage.end());
+            
+            // Sprawdź czy ten obraz już istnieje w poprzednich kopiach
+            bool isDuplicate = false;
+            for (int prevCopy = 0; prevCopy < copyIndex; ++prevCopy) {
+                std::vector<int> prevImage;
+                for (int idx = 0; idx < g1.n; ++idx) {
+                    if (mappings.maps[prevCopy][idx] != Mappings::NO_MAPPING) {
+                        prevImage.push_back(mappings.maps[prevCopy][idx]);
+                    }
+                }
+                std::sort(prevImage.begin(), prevImage.end());
+                if (currentImage == prevImage) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (isDuplicate) {
+                continue; // Pomiń ten kandydat - tworzy duplikat
             }
         }
 
@@ -737,26 +800,34 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k) {
 
 // Walidacja wejścia - sprawdza czy problem ma sens matematyczny
 bool validateInput(int n1, int n2, int k, bool verbose = true) {
-    // KLUCZOWE: Zgodnie z Definicją 5, potrzebujemy k różnych mapowań
-    // z RÓŻNYMI obrazami Im(Mi) ≠ Im(Mj) dla i ≠ j
+    // UWAGA: Im(Mi) ≠ Im(Mj) oznacza różne ZBIORY, ale mogą się przecinać!
+    // Np. {1,2} ≠ {1,3} - różne zbiory mimo wspólnego elementu
+    // Więc k*n1 > n2 NIE WYKLUCZA rozwiązania (obrazy mogą się pokrywać)
     
-    // Minimalna liczba wierzchołków w G2 dla k kopii n1-wierzchołkowych
-    // W najgorszym przypadku (bez nakładania): k * n1
-    if (k * n1 > n2) {
-        if (verbose) {
-            std::cerr << "\n========================================" << std::endl;
-            std::cerr << "OSTRZEŻENIE: Potencjalnie niemożliwy przypadek!" << std::endl;
-            std::cerr << "k=" << k << " × n1=" << n1 << " = " << (k*n1) << " > n2=" << n2 << std::endl;
-            std::cerr << "\nWymaganie: " << k << " różnych " << n1 << "-elementowych podzbiorów" << std::endl;
-            std::cerr << "z " << n2 << "-elementowego zbioru wierzchołków G2" << std::endl;
-            std::cerr << "\nMożliwe jest, że problem nie ma rozwiązania zgodnego" << std::endl;
-            std::cerr << "z Definicją 5 (różne obrazy mapowań Im(Mi)≠Im(Mj))." << std::endl;
-            std::cerr << "========================================\n" << std::endl;
+    // Jednak w praktyce k*n1 > n2 często jest niemożliwe ze względu na:
+    // - różnowartościowość każdego Mi (każde mapowanie używa n1 RÓŻNYCH wierzchołków)
+    // - wymaganie Im(Mi) ≠ Im(Mj)
+    
+    if (verbose) {
+        const uint64_t maxDifferentMappings = binomialCoefficient(n2, n1);
+        std::cout << "Walidacja: k=" << k << ", n1=" << n1 << ", n2=" << n2 << std::endl;
+        
+        if (k * n1 > n2) {
+            std::cout << "  UWAGA: k*n1 = " << k*n1 << " > n2 = " << n2 << std::endl;
+            std::cout << "  Obrazy mapowań muszą się pokrywać (Im(Mi) mogą mieć wspólne elementy)" << std::endl;
+            std::cout << "  To często utrudnia/uniemożliwia znalezienie rozwiązania." << std::endl;
+        } else {
+            std::cout << "  k*n1 = " << k*n1 << " <= n2 = " << n2 << " ✓" << std::endl;
         }
-        return false;  // Ostrzeżenie, ale pozwalamy kontynuować
+        
+        std::cout << "  C(n2,n1) = C(" << n2 << "," << n1 << ") = " << maxDifferentMappings << std::endl;
+        if (static_cast<uint64_t>(k) > maxDifferentMappings) {
+            std::cout << "  UWAGA: k=" << k << " > C(n2,n1)=" << maxDifferentMappings << std::endl;
+            std::cout << "  Potencjalnie niemożliwe - brak wystarczającej liczby różnych podzbiorów!" << std::endl;
+        }
     }
     
-    return true;
+    return true; // Pozwalamy algorytmowi spróbować
 }
 
 // Wczytywanie grafów z pliku
@@ -830,20 +901,27 @@ void printGraph(const Graph& g, const std::string& name) {
 // Wypisz rozwiązanie
 void printSolution(const Solution& sol, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
     std::cout << "\n=== Wyniki algorytmu " << algName << " ===" << std::endl;
-    if (!sol.found) {
+    if (!sol.found || sol.cost == UINT64_MAX) {
         std::cout << "Nie znaleziono rozwiązania." << std::endl;
         std::cout << "\nMożliwe przyczyny:" << std::endl;
-        std::cout << "1. k*n1 > n2: " << k << "*" << n1 << "=" << (k*n1) << " vs n2=" << n2;
-        if (k*n1 > n2) {
+        const uint64_t maxMappings = binomialCoefficient(n2, n1);
+        std::cout << "1. k > C(n2,n1): " << k << " > C(" << n2 << "," << n1 << ")=" << maxMappings;
+        if (static_cast<uint64_t>(k) > maxMappings) {
             std::cout << " ← PROBLEM!" << std::endl;
             std::cout << "   Matematycznie niemożliwe: potrzeba " << k << " różnych " 
-                      << n1 << "-elementowych podzbiorów" << std::endl;
-            std::cout << "   z " << n2 << "-elementowego zbioru (wymaganie Im(Mi)≠Im(Mj))" << std::endl;
+                      << n1 << "-elementowych PODZBIORÓW" << std::endl;
+            std::cout << "   z " << n2 << "-elementowego zbioru, a jest maksymalnie " << maxMappings << std::endl;
         } else {
             std::cout << " (OK)" << std::endl;
         }
-        std::cout << "2. Struktura G1 i G2 uniemożliwia istnienie k różnych izomorfizmów" << std::endl;
-        std::cout << "3. Zbyt restrykcyjne warunki porządku leksykograficznego" << std::endl;
+        
+        if (k * n1 > n2) {
+            std::cout << "2. k*n1 > n2: " << k << "*" << n1 << "=" << k*n1 << " > " << n2 << std::endl;
+            std::cout << "   Obrazy mapowań muszą się pokrywać - utrudnia znalezienie " << k << " różnych Im(Mi)" << std::endl;
+        }
+        
+        std::cout << "3. Struktura G1 i G2 uniemożliwia istnienie k różnych izomorfizmów" << std::endl;
+        std::cout << "4. Zbyt restrykcyjne warunki krotności krawędzi" << std::endl;
         return;
     }
 
@@ -948,7 +1026,8 @@ int main(int argc, char* argv[]) {
         std::cout << "UWAGA: Algorytm może nie znaleźć rozwiązania!" << std::endl;
     } else {
         std::cout << "Parametry wejściowe wyglądają OK." << std::endl;
-        std::cout << "k*n1 = " << (k * g1.n) << " <= n2 = " << g2.n << " ✓" << std::endl;
+        const uint64_t maxMappings = binomialCoefficient(g2.n, g1.n);
+        std::cout << "k = " << k << " <= C(n2,n1) = C(" << g2.n << "," << g1.n << ") = " << maxMappings << " ✓" << std::endl;
     }
 
     // Uruchom algorytm
