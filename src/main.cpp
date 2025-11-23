@@ -504,19 +504,31 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     s.mappings.maps[i] = currentMapping;
 
                     if (delta < bestDelta) {
-
+                        // Sprawdz czy to byl swap (czy v bylo juz w mapowaniu)
+                        bool isSwap = false;
+                        for (int val : currentMapping) {
+                            if (val == v) {
+                                isSwap = true;
+                                break;
+                            }
+                        }
                         // sprawdzenie czy zadne inne mapowanie nie zawiera dokladnie tych samych wiezrcholkow
                         bool isMappingValid = true;
-                        for (const auto& mp : s.mappings.maps) {
-                            std::set<int> mpSet;
-                            for (int val : mp) {
-                                if (val != Mappings::NO_MAPPING) {
-                                    mpSet.insert(val);
+
+                        // Jesli to nie byl swap (czyli zmienil sie zbior wartosci), to sprawdzamy unikalnosc.
+                        // Jesli to byl swap, zachowujemy stary zbior (wiec nie psujemy bardziej niz bylo)
+                        if (!isSwap) {
+                            for (const auto& mp : s.mappings.maps) {
+                                std::set<int> mpSet;
+                                for (int val : mp) {
+                                    if (val != Mappings::NO_MAPPING) {
+                                        mpSet.insert(val);
+                                    }
                                 }
-                            }
-                            if (mpSet == vset) {
-                                isMappingValid = false;
-                                break;
+                                if (mpSet == vset) {
+                                    isMappingValid = false;
+                                    break;
+                                }
                             }
                         }
 

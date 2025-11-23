@@ -223,7 +223,7 @@ def run_test_with_validation(filepath: str, algorithm: str) -> Dict:
             [exe, filepath, algorithm],
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=3,
             encoding='utf-8',
             errors='replace'
         )
