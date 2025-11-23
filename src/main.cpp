@@ -307,15 +307,25 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
             
             for (const auto &candidate : candidates) {
                 if (prefixEqual) {
-                    // POPRAWKA: Poprawne warunki porządku leksykograficznego
-                    if (j < static_cast<uint32_t>(g1.n - 1)) {
-                        // Nie ostatni wierzchołek - może być >= poprzedniego
-                        if (static_cast<int>(candidate.v) < mPrevious[u]) {
-                            continue;
+                    // POPRAWKA: Warunki porządku leksykograficznego
+                    // Dla i-tej kopii wymagamy M_i > M_{i-1} leksykograficznie
+                    // W szczególności: jeśli wszystkie poprzednie wierzchołki są takie same,
+                    // to obecny MUSI być >= poprzedniego
+                    if (static_cast<int>(candidate.v) < mPrevious[u]) {
+                        continue;
+                    }
+                    // DODATKOWY WARUNEK: jeśli to ostatni wierzchołek i wszystkie wcześniejsze
+                    // były równe, to ten MUSI być > (żeby cały tuple był większy)
+                    if (j == static_cast<uint32_t>(g1.n - 1)) {
+                        bool allPreviousEqual = true;
+                        for (uint32_t prev_j = 0; prev_j < j; ++prev_j) {
+                            const auto prev_u = order[prev_j];
+                            if (mappings.maps[i][prev_u] != mPrevious[prev_u]) {
+                                allPreviousEqual = false;
+                                break;
+                            }
                         }
-                    } else {
-                        // Ostatni wierzchołek - musi być > poprzedniego (żeby obraz był różny)
-                        if (static_cast<int>(candidate.v) <= mPrevious[u]) {
+                        if (allPreviousEqual && static_cast<int>(candidate.v) <= mPrevious[u]) {
                             continue;
                         }
                     }
@@ -385,6 +395,11 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
 
 
 Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
+    // POPRAWKA: Jeśli wejściowe rozwiązanie nie zostało znalezione, zwróć je bez zmian
+    if (!s.found) {
+        return s;
+    }
+    
     bool improved = true; // czy znaleziono lepsze rozwiązanie
     int bestDelta;  // o ile lepsze rozwiązanie znalezion (zakres (-inf, 0))
     int copyToModify; // kopia, w która należy dokonać zmian przy najlepszym znalezionym rozwiązaniu
@@ -542,8 +557,21 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
 }
 
 Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
+    // POPRAWKA: Sprawdź warunek k*n1 <= n2 (Definicja 5)
+    // Jeśli k*n1 > n2, matematycznie niemożliwe jest znalezienie k różnych mapowań
+    // z różnymi obrazami Im(Mi) ≠ Im(Mj)
+    if (copies_count * g1.n > static_cast<uint32_t>(g2.n)) {
+        Solution noSolution;
+        noSolution.found = false;
+        noSolution.cost = UINT64_MAX;
+        return noSolution;
+    }
+    
     const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
-    return ImproveApproximateExpansion(initialExpansion, g1, g2);
+    // POPRAWKA: Ustaw found = true dla initialExpansion (bo approx zawsze znajduje coś jeśli k*n1 <= n2)
+    auto result = initialExpansion;
+    result.found = true;
+    return ImproveApproximateExpansion(result, g1, g2);
 }
 
 // Algorytm dokładny - funkcja rekurencyjna
@@ -602,9 +630,12 @@ void recursiveBranching(
         // Sprawdzenie porządku leksykograficznego (sekcja 3.4)
         if (copyIndex > 0 && prefixEqual) {
             const int prevMapping = mappings.maps[copyIndex - 1][u];
-            if (vertexIndex < g1.n - 1 && static_cast<int>(v) < prevMapping) {
+            // Jeśli prefix jest równy, obecny wierzchołek MUSI być >= poprzedniego
+            if (static_cast<int>(v) < prevMapping) {
                 continue;
             }
+            // Jeśli to ostatni wierzchołek i wszystkie poprzednie były równe,
+            // to ten MUSI być > (żeby całe mapowanie było różne)
             if (vertexIndex == g1.n - 1 && static_cast<int>(v) <= prevMapping) {
                 continue;
             }
@@ -930,7 +961,8 @@ int main(int argc, char* argv[]) {
     } else {
         std::cout << "\nUruchamianie algorytmu aproksymacyjnego..." << std::endl;
         solution = approximateExpansion(g1, g2, k);
-        solution.found = true;  // Algorytm aproksymacyjny zawsze znajduje rozwiązanie
+        // POPRAWKA: Approx może nie znaleźć rozwiązania (gdy k*n1 > n2)
+        // solution.found jest już ustawione przez approximateExpansion
     }
     
     auto endTime = std::chrono::high_resolution_clock::now();
