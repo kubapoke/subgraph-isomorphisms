@@ -256,33 +256,69 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
     }
 }
 
-// TODO: Zapewnienie odnalezienia rodziny mapowan -> trzeba to zapewnic tutaj, dodajac jakies checki
+// Forward declaration dla exactAlgorithm (potrzebne dla initializeApproximateExpansion)
+Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k);
+
+// NOWY ALGORYTM INICJALIZACJI APROKSYMACYJNEJ:
+// 1. Znajdujemy pierwszą kopię używając algorytmu dokładnego (k=1)
+// 2. Kolejne kopie znajdujemy modyfikując mapowanie:
+//    - Bierzemy ostatni w porządku wierzchołek
+//    - Ustawiamy dla niego po kolei wszystkie możliwe mapowania
+//    - Jak mapowanie nie jest izomorficzne z żadnym już istniejącym, zapisujemy
+//    - Po rozważeniu wszystkich opcji przesuwamy się o wierzchołek wyżej
 Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const uint32_t copiesCount) {
-    auto extended = g2;
-    auto mappings = Mappings(copiesCount, extended.n);
-    const auto order = g1.verticesOrder();
-    auto cost = 0;
+    if (copiesCount == 0) {
+        Solution noSolution;
+        noSolution.found = false;
+        noSolution.cost = UINT64_MAX;
+        return noSolution;
+    }
     
-    // Helper: sprawdz czy obraz biezacej kopii jest unikalny
-    auto isImageUniqueApprox = [&](uint32_t currentCopy) -> bool {
-        if (currentCopy == 0) return true;
-        
+    // Krok 1: Użyj algorytmu dokładnego dla k=1 aby znaleźć pierwszą kopię
+    Solution firstCopy = exactAlgorithm(g1, g2, 1);
+    
+    if (!firstCopy.found || firstCopy.cost == UINT64_MAX) {
+        // Nie udało się znaleźć nawet jednej kopii
+        Solution noSolution;
+        noSolution.found = false;
+        noSolution.cost = UINT64_MAX;
+        return noSolution;
+    }
+    
+    // Jeśli potrzebujemy tylko jednej kopii, zwracamy
+    if (copiesCount == 1) {
+        return firstCopy;
+    }
+    
+    // Krok 2: Dla kolejnych kopii (i >= 1) modyfikujemy mapowanie
+    auto extended = firstCopy.extendedGraph;
+    auto mappings = Mappings(copiesCount, g1.n);
+    
+    // Przepisz pierwszą kopię
+    mappings.maps[0] = firstCopy.mappings.maps[0];
+    uint64_t cost = firstCopy.cost;
+    
+    const auto order = g1.verticesOrder();
+    
+    // Helper: sprawdza czy obraz i-tej kopii różni się od wszystkich poprzednich
+    auto isImageUnique = [&](uint32_t currentCopy) -> bool {
         std::vector<int> currentImage;
-        for (uint32_t i = 0; i < static_cast<uint32_t>(g1.n); ++i) {
-            if (mappings.maps[currentCopy][i] != Mappings::NO_MAPPING) {
-                currentImage.push_back(mappings.maps[currentCopy][i]);
+        for (int u = 0; u < g1.n; ++u) {
+            if (mappings.maps[currentCopy][u] != Mappings::NO_MAPPING) {
+                currentImage.push_back(mappings.maps[currentCopy][u]);
             }
         }
         std::sort(currentImage.begin(), currentImage.end());
         
         for (uint32_t prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
             std::vector<int> prevImage;
-            for (uint32_t i = 0; i < static_cast<uint32_t>(g1.n); ++i) {
-                if (mappings.maps[prevCopy][i] != Mappings::NO_MAPPING) {
-                    prevImage.push_back(mappings.maps[prevCopy][i]);
+            for (int u = 0; u < g1.n; ++u) {
+                if (mappings.maps[prevCopy][u] != Mappings::NO_MAPPING) {
+                    prevImage.push_back(mappings.maps[prevCopy][u]);
                 }
             }
             std::sort(prevImage.begin(), prevImage.end());
+            
             if (currentImage == prevImage) {
                 return false;
             }
@@ -290,116 +326,103 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         return true;
     };
     
-    for (uint32_t i = 0; i < copiesCount; ++i) {
-        bool prefixEqual = true;
-        std::vector<int32_t> mPrevious;
-        if (i == 0) {
-            mPrevious = std::vector<int32_t>(g1.n, -1);  // POPRAWKA: -1 zamiast UINT32_MAX dla porownan
-        } else {
-            mPrevious = mappings.maps[i - 1];
-        }
-        for (uint32_t j = 0; j < static_cast<uint32_t>(g1.n); ++j) {
-            const auto u = order[j];
-            const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
+    // Dla każdej kolejnej kopii (i = 1, 2, ..., copiesCount-1)
+    for (uint32_t copyIdx = 1; copyIdx < copiesCount; ++copyIdx) {
+        // Skopiuj poprzednią kopię jako punkt startowy
+        mappings.maps[copyIdx] = mappings.maps[copyIdx - 1];
+        
+        bool foundUnique = false;
+        
+        // Próbujemy modyfikować wierzchołki od końca do początku
+        for (int vertexIdx = static_cast<int>(g1.n) - 1; vertexIdx >= 0 && !foundUnique; --vertexIdx) {
+            const auto u = order[vertexIdx];
             
-            uint32_t v = UINT32_MAX;
-            uint32_t candCost = 0;
+            // Zbierz wszystkie możliwe kandydaty dla tego wierzchołka
+            // (które nie są już użyte w bieżącym mapowaniu)
+            std::set<int> usedVertices;
+            for (int j = 0; j < g1.n; ++j) {
+                if (j != static_cast<int>(u) && mappings.maps[copyIdx][j] != Mappings::NO_MAPPING) {
+                    usedVertices.insert(mappings.maps[copyIdx][j]);
+                }
+            }
             
-            for (const auto &candidate : candidates) {
-                if (prefixEqual) {
-                    // POPRAWKA: Warunki porzadku leksykograficznego
-                    // Dla i-tej kopii wymagamy M_i > M_{i-1} leksykograficznie
-                    // W szczegolnosci: jesli wszystkie poprzednie wierzcholki sa takie same,
-                    // to obecny MUSI byc >= poprzedniego
-                    if (static_cast<int>(candidate.v) < mPrevious[u]) {
-                        continue;
+            // Próbuj każdego możliwego v z G2
+            for (int v = 0; v < g2.n; ++v) {
+                // Pomiń wierzchołki już użyte w tym mapowaniu
+                if (usedVertices.count(v)) {
+                    continue;
+                }
+                
+                // Zapisz stare mapowanie
+                int oldV = mappings.maps[copyIdx][u];
+                
+                // Ustaw nowe mapowanie
+                mappings.maps[copyIdx][u] = v;
+                
+                // Sprawdź czy to mapowanie jest izomorficzne z G1
+                // oraz oblicz dodatkowy koszt dla tego mapowania
+                bool isValidMapping = true;
+                uint64_t additionalCost = 0;
+                
+                for (int x = 0; x < g1.n; ++x) {
+                    int mappedX = mappings.maps[copyIdx][x];
+                    if (mappedX == Mappings::NO_MAPPING) continue;
+                    
+                    for (int y = 0; y < g1.n; ++y) {
+                        int mappedY = mappings.maps[copyIdx][y];
+                        if (mappedY == Mappings::NO_MAPPING) continue;
+                        
+                        int reqEdges = g1.matrix[x][y];
+                        int haveEdges = extended.matrix[mappedX][mappedY];
+                        
+                        if (reqEdges > haveEdges) {
+                            additionalCost += (reqEdges - haveEdges);
+                        }
                     }
-                    // DODATKOWY WARUNEK: jesli to ostatni wierzcholek i wszystkie wczesniejsze
-                    // byly rowne, to ten MUSI byc > (zeby caly tuple byl wiekszy)
-                    if (j == static_cast<uint32_t>(g1.n - 1)) {
-                        bool allPreviousEqual = true;
-                        for (uint32_t prev_j = 0; prev_j < j; ++prev_j) {
-                            const auto prev_u = order[prev_j];
-                            if (mappings.maps[i][prev_u] != mPrevious[prev_u]) {
-                                allPreviousEqual = false;
-                                break;
+                }
+                
+                // Sprawdź czy obraz jest unikalny
+                if (isValidMapping && isImageUnique(copyIdx)) {
+                    // Znaleźliśmy unikalne mapowanie!
+                    // Dodaj brakujące krawędzie do extended
+                    for (int x = 0; x < g1.n; ++x) {
+                        int mappedX = mappings.maps[copyIdx][x];
+                        if (mappedX == Mappings::NO_MAPPING) continue;
+                        
+                        for (int y = 0; y < g1.n; ++y) {
+                            int mappedY = mappings.maps[copyIdx][y];
+                            if (mappedY == Mappings::NO_MAPPING) continue;
+                            
+                            int reqEdges = g1.matrix[x][y];
+                            int& haveEdges = extended.matrix[mappedX][mappedY];
+                            
+                            if (reqEdges > haveEdges) {
+                                haveEdges = reqEdges;
                             }
                         }
-                        if (allPreviousEqual && static_cast<int>(candidate.v) <= mPrevious[u]) {
-                            continue;
-                        }
                     }
+                    
+                    cost += additionalCost;
+                    foundUnique = true;
+                    break;
                 }
-                // Kandydat spelnia wymagania, mozemy pominac kolejnych
-                v = candidate.v;
-                candCost = candidate.deltaCost;
-                break;
+                
+                // Przywróć stare mapowanie jeśli nie znaleziono
+                mappings.maps[copyIdx][u] = oldV;
             }
-            
-            // POPRAWKA: Sprawdz czy znaleziono kandydata
-            if (v == UINT32_MAX) {
-                // Nie znaleziono poprawnego kandydata - cos poszlo nie tak
-                // To moze sie zdarzyc gdy brak wystarczajacej liczby wierzcholkow
-                // Wroc do pierwszego dostepnego
-                if (!candidates.empty()) {
-                    v = candidates[0].v;
-                    candCost = candidates[0].deltaCost;
-                }
-            }
-            
-            mappings.maps[i][u] = v;
-            cost += candCost;
-            addMissingEdges(u, v, g1, extended, mappings.maps[i]);
-            prefixEqual = prefixEqual && (static_cast<int>(v) == mPrevious[u]);
         }
         
-        // POPRAWKA: Sprawdz unikalnosc obrazu po zakonczeniu mapowania kopii
-        // Jesli obraz nie jest unikalny, trzeba znalezc inne mapowanie
-        if (!isImageUniqueApprox(i)) {
-            // Sprobuj znalezc alternatywne mapowanie zmieniajac kolejne wierzcholki od konca
-            bool foundUnique = false;
-            for (int attemptVertex = static_cast<int>(g1.n) - 1; attemptVertex >= 0 && !foundUnique; --attemptVertex) {
-                const auto u = order[attemptVertex];
-                const int oldV = mappings.maps[i][u];
-                
-                // Cofnij mapowanie tego wierzcholka
-                mappings.maps[i][u] = Mappings::NO_MAPPING;
-                
-                const auto candidates = chooseCandidates(u, g1, g2, extended, mappings.maps[i]);
-                
-                for (const auto &candidate : candidates) {
-                    if (static_cast<int>(candidate.v) == oldV) continue; // Pomin poprzedni wybor
-                    
-                    mappings.maps[i][u] = candidate.v;
-                    addMissingEdges(u, candidate.v, g1, extended, mappings.maps[i]);
-                    
-                    if (isImageUniqueApprox(i)) {
-                        // Znaleziono unikalny obraz!
-                        foundUnique = true;
-                        cost += candidate.deltaCost;
-                        break;
-                    }
-                }
-                
-                if (!foundUnique) {
-                    // Przywroc poprzednie mapowanie
-                    mappings.maps[i][u] = oldV;
-                    addMissingEdges(u, oldV, g1, extended, mappings.maps[i]);
-                }
-            }
-            
-            // Jesli nadal nie znaleziono unikalnego obrazu, zwroc NO_SOLUTION
-            if (!foundUnique) {
-                Solution noSolution;
-                noSolution.found = false;
-                noSolution.cost = UINT64_MAX;
-                return noSolution;
-            }
+        // Jeśli nie znaleziono unikalnego mapowania dla tej kopii, zwróć błąd
+        if (!foundUnique) {
+            Solution noSolution;
+            noSolution.found = false;
+            noSolution.cost = UINT64_MAX;
+            return noSolution;
         }
-
     }
+    
     auto solution = Solution(std::move(extended), std::move(mappings), cost);
-    solution.found = true; // Udalo sie znalezc mapowania
+    solution.found = true;
     return solution;
 }
 
