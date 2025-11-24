@@ -817,39 +817,22 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k) {
     return bestSolution;
 }
 
-// Walidacja wejscia - wyswietla informacje pomocnicze
-bool validateInput(int n1, int n2, int k, bool verbose = true) {
-    const uint64_t maxDifferentMappings = binomialCoefficient(n2, n1);
-    
-    if (verbose) {
-        std::cout << "Walidacja: k=" << k << ", n1=" << n1 << ", n2=" << n2 << std::endl;
-        std::cout << "  C(n2,n1) = C(" << n2 << "," << n1 << ") = " << maxDifferentMappings << std::endl;
-    }
-
-    if (static_cast<uint64_t>(k) > maxDifferentMappings) {
-        if (verbose) {
-            std::cout << "  BlaD: k > C(n2,n1) - matematycznie niemozliwe!" << std::endl;
-        }
-        return false;
-    }
-    
-    return true;
-}
-
-// Wczytywanie grafow z pliku
-// Format zgodnie z emailem: n1, macierz G1, n2, macierz G2, [k]
+// Wczytywanie grafow z pliku z bulletproof walidacją
 bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& k) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Nie mozna otworzyc pliku: " << filename << std::endl;
+        std::cerr << "ERROR: Cannot open file: " << filename << std::endl;
         return false;
     }
 
     // Wczytaj n1
     int n1;
-    file >> n1;
+    if (!(file >> n1)) {
+        std::cerr << "ERROR: Cannot read n1 (number of vertices in G1)" << std::endl;
+        return false;
+    }
     if (n1 <= 0) {
-        std::cerr << "Nieprawidlowa liczba wierzcholkow G1: " << n1 << std::endl;
+        std::cerr << "ERROR: Invalid n1=" << n1 << " (must be positive)" << std::endl;
         return false;
     }
 
@@ -857,15 +840,29 @@ bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& 
     // Wczytaj macierz sasiedztwa G1
     for (int i = 0; i < n1; ++i) {
         for (int j = 0; j < n1; ++j) {
-            file >> g1.matrix[i][j];
+            if (!(file >> g1.matrix[i][j])) {
+                std::cerr << "ERROR: Cannot read G1 adjacency matrix at position (" << i << "," << j << ")" << std::endl;
+                return false;
+            }
+            if (g1.matrix[i][j] < 0) {
+                std::cerr << "ERROR: Negative edge count in G1[" << i << "][" << j << "]=" << g1.matrix[i][j] << std::endl;
+                return false;
+            }
         }
     }
 
     // Wczytaj n2
     int n2;
-    file >> n2;
+    if (!(file >> n2)) {
+        std::cerr << "ERROR: Cannot read n2 (number of vertices in G2)" << std::endl;
+        return false;
+    }
     if (n2 <= 0) {
-        std::cerr << "Nieprawidlowa liczba wierzcholkow G2: " << n2 << std::endl;
+        std::cerr << "ERROR: Invalid n2=" << n2 << " (must be positive)" << std::endl;
+        return false;
+    }
+    if (n2 < n1) {
+        std::cerr << "ERROR: n2=" << n2 << " < n1=" << n1 << " (G2 must have at least as many vertices as G1)" << std::endl;
         return false;
     }
 
@@ -873,18 +870,24 @@ bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& 
     // Wczytaj macierz sasiedztwa G2
     for (int i = 0; i < n2; ++i) {
         for (int j = 0; j < n2; ++j) {
-            file >> g2.matrix[i][j];
+            if (!(file >> g2.matrix[i][j])) {
+                std::cerr << "ERROR: Cannot read G2 adjacency matrix at position (" << i << "," << j << ")" << std::endl;
+                return false;
+            }
+            if (g2.matrix[i][j] < 0) {
+                std::cerr << "ERROR: Negative edge count in G2[" << i << "][" << j << "]=" << g2.matrix[i][j] << std::endl;
+                return false;
+            }
         }
     }
 
     // Wczytaj k (opcjonalnie, domyslnie 1)
+    k = 1;
     if (file >> k) {
         if (k <= 0) {
-            std::cerr << "Nieprawidlowa liczba kopii k: " << k << std::endl;
+            std::cerr << "ERROR: Invalid k=" << k << " (must be positive)" << std::endl;
             return false;
         }
-    } else {
-        k = 1;
     }
 
     file.close();
@@ -904,161 +907,189 @@ void printGraph(const Graph& g, const std::string& name) {
     std::cout << std::endl;
 }
 
-// Wypisz rozwiazanie
-void printSolution(const Solution& sol, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
-    std::cout << "\n=== Wyniki algorytmu " << algName << " ===" << std::endl;
-    if (!sol.found || sol.cost == UINT64_MAX) {
-        std::cout << "Nie znaleziono rozwiazania." << std::endl;
-        std::cout << "\nMozliwe przyczyny:" << std::endl;
-        const uint64_t maxMappings = binomialCoefficient(n2, n1);
-        std::cout << "1. k > C(n2,n1): " << k << " > C(" << n2 << "," << n1 << ")=" << maxMappings;
-        if (static_cast<uint64_t>(k) > maxMappings) {
-            std::cout << " ← PROBLEM!" << std::endl;
-            std::cout << "   Matematycznie niemozliwe: potrzeba " << k << " roznych " 
-                      << n1 << "-elementowych PODZBIORoW" << std::endl;
-            std::cout << "   z " << n2 << "-elementowego zbioru, a jest maksymalnie " << maxMappings << std::endl;
-        } else {
-            std::cout << " (OK)" << std::endl;
+// Wypisz tylko macierz (bez ozdobników)
+void printMatrixOnly(const Graph& g) {
+    for (int i = 0; i < g.n; ++i) {
+        for (int j = 0; j < g.n; ++j) {
+            std::cout << g.matrix[i][j];
+            if (j < g.n - 1) std::cout << " ";
         }
-        
-        std::cout << "3. Struktura grafow uniemozliwia istnienie k roznych izomorfizmow" << std::endl;
-        std::cout << "4. Zbyt restrykcyjne warunki krotnosci krawedzi" << std::endl;
+        std::cout << std::endl;
+    }
+}
+
+// Wypisz rozwiazanie - verbose mode
+void printSolutionVerbose(const Solution& sol, const Graph& g1, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
+    std::cout << "\n=== Results from " << algName << " algorithm ===" << std::endl;
+    if (!sol.found || sol.cost == UINT64_MAX) {
+        std::cerr << "ERROR: Solution not found." << std::endl;
+        const uint64_t maxMappings = binomialCoefficient(n2, n1);
+        if (static_cast<uint64_t>(k) > maxMappings) {
+            std::cerr << "REASON: k > C(n2,n1) - mathematically impossible." << std::endl;
+            std::cerr << "  Requested k=" << k << " different " << n1 << "-element subsets" << std::endl;
+            std::cerr << "  from " << n2 << "-element set, but C(" << n2 << "," << n1 << ")=" << maxMappings << std::endl;
+        } else {
+            std::cerr << "REASON: Graph structure does not allow k distinct isomorphic embeddings." << std::endl;
+        }
         return;
     }
 
-    std::cout << "Koszt rozszerzenia: " << sol.cost << std::endl;
-    std::cout << "Liczba dodanych krawedzi: " << (sol.extendedGraph.totalEdges() - g2.totalEdges()) << std::endl;
+    std::cout << "Extension cost: " << sol.cost << std::endl;
+    std::cout << "Added edges: " << (sol.extendedGraph.totalEdges() - g2.totalEdges()) << std::endl;
     
-    std::cout << "\nMapowania:" << std::endl;
+    std::cout << "\nMappings:" << std::endl;
     for (int i = 0; i < sol.mappings.k; ++i) {
-        std::cout << "  Kopia " << (i+1) << ": ";
-        int count = 0;
+        std::cout << "  Copy " << (i+1) << ": ";
         for (int j = 0; j < sol.mappings.n; ++j) {
-            if (sol.mappings.maps[i][j] != -1) {
-                if (count > 0) std::cout << ", ";
-                std::cout << j << "->" << sol.mappings.maps[i][j];
-                count++;
-            }
+            if (j > 0) std::cout << ", ";
+            std::cout << j << "->" << sol.mappings.maps[i][j];
         }
         std::cout << std::endl;
     }
 
-    std::cout << "\nRozszerzony graf G'_2:" << std::endl;
+    std::cout << "\nExtended graph G'_2:" << std::endl;
     printGraph(sol.extendedGraph, "G'_2");
 }
 
+// Wypisz rozwiazanie - simple mode (tylko wynik)
+void printSolutionSimple(const Solution& sol) {
+    if (!sol.found || sol.cost == UINT64_MAX) {
+        std::cerr << "ERROR: No solution found" << std::endl;
+        return;
+    }
+    
+    // Format: n, macierz, koszt
+    std::cout << sol.extendedGraph.n << std::endl;
+    printMatrixOnly(sol.extendedGraph);
+    std::cout << sol.cost << std::endl;
+}
+
 void printUsage(const char* programName) {
-    std::cout << "Uzycie: " << programName << " [plik_z_danymi] [algorytm]" << std::endl;
-    std::cout << "  plik_z_danymi - sciezka do pliku z grafami (opcjonalne, domyslnie wczytuje z stdin)" << std::endl;
-    std::cout << "  algorytm      - 'exact' lub 'approx' (opcjonalne, domyslnie 'exact')" << std::endl;
-    std::cout << "\nFormat pliku:" << std::endl;
+    std::cout << "Usage: " << programName << " <input_file> [options]" << std::endl;
+    std::cout << "\nOptions:" << std::endl;
+    std::cout << "  -a, --approx     Use approximate algorithm (default: exact)" << std::endl;
+    std::cout << "  -v, --verbose    Show detailed input/output with mappings" << std::endl;
+    std::cout << "  -h, --help       Show this help message" << std::endl;
+    std::cout << "\nInput file format:" << std::endl;
     std::cout << "  n1" << std::endl;
-    std::cout << "  macierz_sasiedztwa_G1 (n1 x n1)" << std::endl;
+    std::cout << "  adjacency_matrix_G1 (n1 x n1)" << std::endl;
     std::cout << "  n2" << std::endl;
-    std::cout << "  macierz_sasiedztwa_G2 (n2 x n2)" << std::endl;
-    std::cout << "  k (opcjonalne, liczba kopii, domyslnie 1)" << std::endl;
+    std::cout << "  adjacency_matrix_G2 (n2 x n2)" << std::endl;
+    std::cout << "  k (optional, number of copies, default: 1)" << std::endl;
+    std::cout << "\nOutput format (simple mode):" << std::endl;
+    std::cout << "  n" << std::endl;
+    std::cout << "  extended_adjacency_matrix (n x n)" << std::endl;
+    std::cout << "  extension_cost" << std::endl;
+    std::cout << "\nOutput file: out.txt (created next to executable)" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
     std::string filename;
-    std::string algorithm = "exact";
+    bool useApprox = false;
+    bool verbose = false;
 
     // Parsowanie argumentow
-    if (argc > 1) {
-        filename = argv[1];
-        if (filename == "--help" || filename == "-h") {
+    if (argc < 2) {
+        std::cerr << "ERROR: No input file specified" << std::endl;
+        printUsage(argv[0]);
+        return 1;
+    }
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
             return 0;
-        }
-    }
-    if (argc > 2) {
-        algorithm = argv[2];
-        if (algorithm != "exact" && algorithm != "approx") {
-            std::cerr << "Nieprawidlowy algorytm: " << algorithm << std::endl;
-            std::cerr << "Uzyj 'exact' lub 'approx'" << std::endl;
+        } else if (arg == "-a" || arg == "--approx") {
+            useApprox = true;
+        } else if (arg == "-v" || arg == "--verbose") {
+            verbose = true;
+        } else if (arg[0] == '-') {
+            std::cerr << "ERROR: Unknown option: " << arg << std::endl;
+            printUsage(argv[0]);
+            return 1;
+        } else if (filename.empty()) {
+            filename = arg;
+        } else {
+            std::cerr << "ERROR: Multiple input files specified" << std::endl;
             return 1;
         }
+    }
+
+    if (filename.empty()) {
+        std::cerr << "ERROR: No input file specified" << std::endl;
+        printUsage(argv[0]);
+        return 1;
     }
 
     Graph g1, g2;
     int k = 1;
 
     // Wczytaj dane
-    if (!filename.empty()) {
-        if (!loadGraphsFromFile(filename, g1, g2, k)) {
-            return 1;
-        }
-    } else {
-        std::cout << "Wczytywanie z stdin..." << std::endl;
-        std::cout << "Podaj n1: ";
-        std::cin >> g1.n;
-        g1 = Graph(g1.n);
-        std::cout << "Podaj macierz sasiedztwa G1 (" << g1.n << "x" << g1.n << "):" << std::endl;
-        for (int i = 0; i < g1.n; ++i) {
-            for (int j = 0; j < g1.n; ++j) {
-                std::cin >> g1.matrix[i][j];
-            }
-        }
-        
-        std::cout << "Podaj n2: ";
-        std::cin >> g2.n;
-        g2 = Graph(g2.n);
-        std::cout << "Podaj macierz sasiedztwa G2 (" << g2.n << "x" << g2.n << "):" << std::endl;
-        for (int i = 0; i < g2.n; ++i) {
-            for (int j = 0; j < g2.n; ++j) {
-                std::cin >> g2.matrix[i][j];
-            }
-        }
-        
-        std::cout << "Podaj k (liczba kopii): ";
-        std::cin >> k;
+    if (!loadGraphsFromFile(filename, g1, g2, k)) {
+        return 1;
     }
 
-    // Wypisz dane wejsciowe
-    std::cout << "\n=== Dane wejsciowe ===" << std::endl;
-    printGraph(g1, "G1");
-    printGraph(g2, "G2");
-    std::cout << "Liczba kopii k: " << k << std::endl;
-    
-    // WALIDACJA WEJsCIA
-    std::cout << "\n=== Walidacja wejscia ===" << std::endl;
-    bool inputValid = validateInput(g1.n, g2.n, k, true);
-    if (!inputValid) {
-        std::cout << "BlaD KRYTYCZNY: Parametry wejsciowe sa niepoprawne (k > C(n2,n1))." << std::endl;
-        std::cout << "Prerywanie dzialania programu." << std::endl;
+    // WALIDACJA WEJSCIA
+    const uint64_t maxMappings = binomialCoefficient(g2.n, g1.n);
+    if (static_cast<uint64_t>(k) > maxMappings) {
+        std::cerr << "ERROR: Impossible to find " << k << " distinct embeddings." << std::endl;
+        std::cerr << "REASON: k=" << k << " > C(n2,n1)=C(" << g2.n << "," << g1.n << ")=" << maxMappings << std::endl;
+        std::cerr << "Need " << k << " different " << g1.n << "-vertex subgraphs from " << g2.n << " vertices." << std::endl;
+        std::cerr << "The algorithm cannot add new vertices to G2." << std::endl;
         return 1;
-    } else {
-        std::cout << "Parametry wejsciowe wygladaja OK." << std::endl;
-        const uint64_t maxMappings = binomialCoefficient(g2.n, g1.n);
-        std::cout << "k = " << k << " <= C(n2,n1) = C(" << g2.n << "," << g1.n << ") = " << maxMappings << " ✓" << std::endl;
+    }
+
+    // Wypisz dane wejsciowe (tylko w verbose mode)
+    if (verbose) {
+        std::cout << "\n=== Input ===" << std::endl;
+        printGraph(g1, "G1");
+        printGraph(g2, "G2");
+        std::cout << "Number of copies k: " << k << std::endl;
+        std::cout << "Max possible distinct embeddings: C(" << g2.n << "," << g1.n << ")=" << maxMappings << std::endl;
     }
 
     // Uruchom algorytm
     Solution solution;
     auto startTime = std::chrono::high_resolution_clock::now();
     
-    if (algorithm == "exact") {
-        std::cout << "\nUruchamianie algorytmu dokladnego..." << std::endl;
-        solution = exactAlgorithm(g1, g2, k);
-    } else {
-        std::cout << "\nUruchamianie algorytmu aproksymacyjnego..." << std::endl;
+    std::string algName = useApprox ? "approximate" : "exact";
+    if (verbose) {
+        std::cout << "\nRunning " << algName << " algorithm..." << std::endl;
+    }
+    
+    if (useApprox) {
         solution = approximateExpansion(g1, g2, k);
+    } else {
+        solution = exactAlgorithm(g1, g2, k);
     }
     
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
-    // Wypisz wyniki
-    printSolution(solution, g2, algorithm, g1.n, g2.n, k);
-    std::cout << "\nCzas wykonania: " << duration.count() << " ms" << std::endl;
+    // Sprawdź czy znaleziono rozwiązanie
+    if (!solution.found || solution.cost == UINT64_MAX) {
+        std::cerr << "ERROR: No solution found" << std::endl;
+        if (verbose) {
+            std::cerr << "Graph structure does not allow " << k << " distinct isomorphic embeddings." << std::endl;
+            std::cerr << "The algorithm cannot add new vertices to G2." << std::endl;
+        }
+        return 1;
+    }
 
-    // Zapisz wynik do pliku output
-    std::ofstream outFile("src/output/result.txt");
+    // Wypisz wyniki
+    if (verbose) {
+        printSolutionVerbose(solution, g1, g2, algName, g1.n, g2.n, k);
+        std::cout << "Execution time: " << duration.count() << " ms" << std::endl;
+    } else {
+        printSolutionSimple(solution);
+    }
+
+    // Zapisz wynik do pliku output (obok exe)
+    std::ofstream outFile("out.txt");
     if (outFile.is_open()) {
-        outFile << "Algorytm: " << algorithm << std::endl;
-        outFile << "Koszt: " << solution.cost << std::endl;
-        outFile << "Czas: " << duration.count() << " ms" << std::endl;
-        outFile << "\nRozszerzony graf G'_2:" << std::endl;
+        // Format: n, macierz, koszt
+        outFile << solution.extendedGraph.n << std::endl;
         for (int i = 0; i < solution.extendedGraph.n; ++i) {
             for (int j = 0; j < solution.extendedGraph.n; ++j) {
                 outFile << solution.extendedGraph.matrix[i][j];
@@ -1066,8 +1097,16 @@ int main(int argc, char* argv[]) {
             }
             outFile << std::endl;
         }
+        outFile << solution.cost << std::endl;
         outFile.close();
-        std::cout << "\nWynik zapisano do src/output/result.txt" << std::endl;
+        
+        if (verbose) {
+            std::cout << "\nResult saved to out.txt" << std::endl;
+        }
+    } else {
+        if (verbose) {
+            std::cerr << "Warning: Could not create out.txt" << std::endl;
+        }
     }
 
     return 0;

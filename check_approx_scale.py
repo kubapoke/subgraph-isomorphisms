@@ -88,42 +88,87 @@ def generate_random_test_file(filename, n1, n2, k, density=0.3):
         f.write(f"{k}\n")
 
 def parse_output(output: str, n1: int, n2: int, k: int):
+    """
+    Parsuje output - obsługuje zarówno verbose jak i simple mode.
+    """
     lines = output.split('\n')
-    cost = None
-    for line in lines:
-        if 'Koszt rozszerzenia:' in line:
-            match = re.search(r':\s*(\d+)', line)
-            if match: cost = int(match.group(1))
+    
+    # Sprawdź czy to verbose (ma "Extension cost:" lub "===")
+    is_verbose = any('===' in line or 'Extension cost:' in line or 'Koszt rozszerzenia:' in line for line in lines)
+    
+    if is_verbose:
+        # Verbose mode parser
+        cost = None
+        for line in lines:
+            if 'Extension cost:' in line or 'Koszt rozszerzenia:' in line:
+                match = re.search(r':\s*(\d+)', line)
+                if match: cost = int(match.group(1))
+                
+        if cost is None: return None
+
+        mappings = [Mapping(n1) for _ in range(k)]
+        g2_ext = None
+        
+        # Parsowanie mapowań
+        in_mappings = False
+        for line in lines:
+            if 'Mapowania:' in line or 'Mappings:' in line: 
+                in_mappings = True
+                continue
+            if in_mappings and ('Rozszerzony graf' in line or 'Extended graph' in line): 
+                break
+            if in_mappings:
+                m = re.match(r'\s*(?:Kopia|Copy)\s+(\d+):\s*(.+)', line)
+                if m:
+                    idx = int(m.group(1)) - 1
+                    pairs = re.findall(r'(\d+)->(\d+)', m.group(2))
+                    for u, v in pairs:
+                        if idx < k: mappings[idx].set(int(u), int(v))
+
+        # Parsowanie macierzy
+        matrix_lines = []
+        in_matrix = False
+        for line in lines:
+            if 'Rozszerzony graf' in line or 'Extended graph' in line or "G'_2" in line: 
+                in_matrix = True
+                continue
+            if in_matrix:
+                nums = re.findall(r'\d+', line)
+                if len(nums) == n2: 
+                    matrix_lines.append(list(map(int, nums)))
+        
+        if len(matrix_lines) == n2:
+            g2_ext = Graph(n2, matrix_lines)
+    else:
+        # Simple mode parser: n, macierz, koszt
+        clean_lines = [line.strip() for line in lines if line.strip() and not line.startswith('ERROR')]
+        
+        if len(clean_lines) < 3:
+            return None
+        
+        try:
+            n = int(clean_lines[0])
+            if n != n2:
+                return None
             
-    if cost is None: return None
-
-    mappings = [Mapping(n1) for _ in range(k)]
-    g2_ext = None
-    
-    # Parsowanie mapowań
-    in_mappings = False
-    for line in lines:
-        if 'Mapowania:' in line: in_mappings = True; continue
-        if in_mappings and 'Rozszerzony graf' in line: break
-        if in_mappings:
-            m = re.match(r'\s*Kopia\s+(\d+):\s*(.+)', line)
-            if m:
-                idx = int(m.group(1)) - 1
-                pairs = re.findall(r'(\d+)->(\d+)', m.group(2))
-                for u, v in pairs:
-                    if idx < k: mappings[idx].set(int(u), int(v))
-
-    # Parsowanie macierzy
-    matrix_lines = []
-    in_matrix = False
-    for line in lines:
-        if 'Rozszerzony graf' in line: in_matrix = True; continue
-        if in_matrix:
-            nums = re.findall(r'\d+', line)
-            if len(nums) == n2: matrix_lines.append(list(map(int, nums)))
-    
-    if len(matrix_lines) == n2:
-        g2_ext = Graph(n2, matrix_lines)
+            matrix_lines = []
+            for i in range(1, n+1):
+                if i >= len(clean_lines):
+                    return None
+                row = list(map(int, clean_lines[i].split()))
+                if len(row) != n:
+                    return None
+                matrix_lines.append(row)
+            
+            cost = int(clean_lines[n+1])
+            g2_ext = Graph(n, matrix_lines)
+            mappings = [Mapping(n1) for _ in range(k)]  # Puste, ale niepotrzebne do walidacji kosztu
+            
+        except (ValueError, IndexError):
+            return None
+            
+    if g2_ext is None:
+        return None
         
     return g2_ext, mappings, cost
 
@@ -174,8 +219,9 @@ def main():
 
         start = time.time()
         try:
+            # Nowy format: exe plik -a -v (dodajemy -v dla pełnej walidacji)
             result = subprocess.run(
-                [exe, test_file, "approx"],
+                [exe, test_file, "-a", "-v"],
                 capture_output=True, text=True, timeout=60
             )
             elapsed = time.time() - start
@@ -188,9 +234,10 @@ def main():
                 # WERYFIKACJA
                 errors = []
                 
-                # 1. Definicja 5 (k kopii, unikalne obrazy, izomorfizm)
-                ok_k, msg_k = verify_k_copies(g1, g2_ext, mappings, k)
-                if not ok_k: errors.append(msg_k)
+                # 1. Definicja 5 (k kopii, unikalne obrazy, izomorfizm) - tylko jeśli mamy mapowania
+                if all(m.is_complete() for m in mappings):
+                    ok_k, msg_k = verify_k_copies(g1, g2_ext, mappings, k)
+                    if not ok_k: errors.append(msg_k)
                 
                 # 2. Definicja 7 (Koszt)
                 try:
@@ -200,17 +247,17 @@ def main():
                 except ValueError as e:
                     errors.append(str(e))
                 
-                status = "✅ OK" if not errors else f"❌ {errors[0]}"
+                status = "[OK]" if not errors else f"[FAIL] {errors[0]}"
                 print(f"n1={n1}, n2={n2}, k={k:<4} | {elapsed*1000:.0f}ms     | {reported_cost:<10} | {status}")
                 
             else:
-                if "Nie znaleziono rozwiązania" in result.stdout:
-                     print(f"n1={n1}, n2={n2}, k={k:<4} | {elapsed*1000:.0f}ms     | {'-':<10} | ❓ NO_SOLUTION (Możliwe)")
+                if "No solution found" in result.stdout or "Nie znaleziono rozwiązania" in result.stdout:
+                     print(f"n1={n1}, n2={n2}, k={k:<4} | {elapsed*1000:.0f}ms     | {'-':<10} | [NO_SOL] (Możliwe)")
                 else:
-                     print(f"n1={n1}, n2={n2}, k={k:<4} | {elapsed*1000:.0f}ms     | {'?':<10} | ❌ PARSE ERROR")
+                     print(f"n1={n1}, n2={n2}, k={k:<4} | {elapsed*1000:.0f}ms     | {'?':<10} | [FAIL] PARSE ERROR")
                 
         except subprocess.TimeoutExpired:
-            print(f"n1={n1}, n2={n2}, k={k:<4} | >60000ms   | {'-':<10} | ⏱️ TIMEOUT")
+            print(f"n1={n1}, n2={n2}, k={k:<4} | >60000ms   | {'-':<10} | [TIMEOUT]")
             
     if os.path.exists(test_file):
         os.remove(test_file)

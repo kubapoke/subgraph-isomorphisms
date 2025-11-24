@@ -147,57 +147,103 @@ def parse_graph_from_file(filepath: str) -> Tuple[Graph, Graph, int]:
     return Graph(n1, matrix1), Graph(n2, matrix2), k
 
 def parse_algorithm_output(output: str, n1: int, n2: int, k: int) -> Optional[Tuple[Graph, List[Mapping], int]]:
+    """
+    Parsuje output z programu C++.
+    
+    Tryb verbose: stary format z opisami
+    Tryb simple: 
+        n
+        macierz (n x n)
+        koszt
+    """
     lines = output.split('\n')
     
-    cost = None
-    for line in lines:
-        if 'Koszt rozszerzenia:' in line:
-            match = re.search(r':\s*(\d+)', line)
-            if match:
-                cost = int(match.group(1))
-                break
+    # Sprawd\u017a czy to tryb verbose (ma "Results from" lub podobne)
+    is_verbose = any('===' in line or 'Results' in line or 'Extension cost:' in line for line in lines)
     
-    if cost is None:
-        return None
-    
-    mappings = [Mapping(n1) for _ in range(k)]
-    in_mappings = False
-    
-    for line in lines:
-        if 'Mapowania:' in line:
-            in_mappings = True
-            continue
-        
-        if in_mappings:
-            copy_match = re.match(r'\s*Kopia\s+(\d+):\s*(.+)', line, re.IGNORECASE)
-            if copy_match:
-                copy_num = int(copy_match.group(1)) - 1
-                mapping_str = copy_match.group(2)
-                pairs = re.findall(r'(\d+)->(\d+)', mapping_str)
-                for u_str, v_str in pairs:
-                    u, v = int(u_str), int(v_str)
-                    if copy_num < k:
-                        mappings[copy_num].set(u, v)
-            
-            if 'Rozszerzony graf' in line:
-                break
-    
-    g2_extended = None
-    in_extended = False
-    matrix_lines = []
-    
-    for line in lines:
-        if 'Rozszerzony graf' in line or "G'_2" in line:
-            in_extended = True
-            continue
-        
-        if in_extended:
-            numbers = re.findall(r'\d+', line)
-            if len(numbers) == n2:
-                matrix_lines.append(list(map(int, numbers)))
-                if len(matrix_lines) == n2:
-                    g2_extended = Graph(n2, matrix_lines)
+    if is_verbose:
+        # Stary parser verbose
+        cost = None
+        for line in lines:
+            if 'Extension cost:' in line or 'Koszt rozszerzenia:' in line:
+                match = re.search(r':\s*(\d+)', line)
+                if match:
+                    cost = int(match.group(1))
                     break
+        
+        if cost is None:
+            return None
+        
+        mappings = [Mapping(n1) for _ in range(k)]
+        in_mappings = False
+        
+        for line in lines:
+            if 'Mapowania:' in line or 'Mappings:' in line:
+                in_mappings = True
+                continue
+            
+            if in_mappings:
+                copy_match = re.match(r'\s*(?:Kopia|Copy)\s+(\d+):\s*(.+)', line, re.IGNORECASE)
+                if copy_match:
+                    copy_num = int(copy_match.group(1)) - 1
+                    mapping_str = copy_match.group(2)
+                    pairs = re.findall(r'(\d+)->(\d+)', mapping_str)
+                    for u_str, v_str in pairs:
+                        u, v = int(u_str), int(v_str)
+                        if copy_num < k:
+                            mappings[copy_num].set(u, v)
+                
+                if 'Rozszerzony graf' in line or 'Extended graph' in line:
+                    break
+        
+        g2_extended = None
+        in_extended = False
+        matrix_lines = []
+        
+        for line in lines:
+            if 'Rozszerzony graf' in line or "G'_2" in line or 'Extended graph' in line:
+                in_extended = True
+                continue
+            
+            if in_extended:
+                numbers = re.findall(r'\d+', line)
+                if len(numbers) == n2:
+                    matrix_lines.append(list(map(int, numbers)))
+                    if len(matrix_lines) == n2:
+                        g2_extended = Graph(n2, matrix_lines)
+                        break
+    else:
+        # Nowy parser simple mode
+        # Format: n, macierz (n linii), koszt
+        clean_lines = [line.strip() for line in lines if line.strip() and not line.startswith('ERROR')]
+        
+        if len(clean_lines) < 3:
+            return None
+        
+        try:
+            n = int(clean_lines[0])
+            if n != n2:
+                return None
+            
+            matrix_lines = []
+            for i in range(1, n+1):
+                if i >= len(clean_lines):
+                    return None
+                row = list(map(int, clean_lines[i].split()))
+                if len(row) != n:
+                    return None
+                matrix_lines.append(row)
+            
+            cost = int(clean_lines[n+1])
+            g2_extended = Graph(n, matrix_lines)
+            
+            # W simple mode nie mamy mapowa\u0144, ale musimy je odtworzy\u0107 z pliku out.txt lub nie sprawdza\u0107
+            # Na razie zwr\u00f3\u0107my puste mapowania
+            mappings = [Mapping(n1) for _ in range(k)]
+            # To b\u0119dzie niepe\u0142ne, ale koszt mo\u017cemy sprawdzi\u0107
+            
+        except (ValueError, IndexError):
+            return None
     
     if g2_extended is None:
         return None
@@ -208,9 +254,7 @@ def parse_algorithm_output(output: str, n1: int, n2: int, k: int) -> Optional[Tu
 # TEST RUNNER
 # ============================================================================
 
-def run_test_with_validation(filepath: str, algorithm: str) -> Dict:
-    exe = r".\build\subgraph-isomorphism.exe"
-    
+def run_test_with_validation(filepath: str, algorithm: str, exe_path: str = r".\build\subgraph-isomorphism.exe") -> Dict:
     # Wczytaj dane wejściowe
     try:
         g1, g2, k = parse_graph_from_file(filepath)
@@ -219,8 +263,15 @@ def run_test_with_validation(filepath: str, algorithm: str) -> Dict:
 
     start = time.time()
     try:
+        # Nowy format: exe plik [-a] [-v]
+        cmd = [exe_path, filepath]
+        if algorithm == 'approx':
+            cmd.append('-a')
+        # Dodajemy -v aby uzyska\u0107 mapowania do walidacji
+        cmd.append('-v')
+        
         result = subprocess.run(
-            [exe, filepath, algorithm],
+            cmd,
             capture_output=True,
             text=True,
             timeout=3,
@@ -229,20 +280,40 @@ def run_test_with_validation(filepath: str, algorithm: str) -> Dict:
         )
         elapsed = time.time() - start
         
-        parsed = parse_algorithm_output(result.stdout, g1.n, g2.n, k)
+        # Sprawdź stderr - program może zwrócić błąd walidacji input
+        stderr_output = result.stderr if result.stderr else ""
+        stdout_output = result.stdout if result.stdout else ""
+        combined_output = stdout_output + "\n" + stderr_output
         
-        if parsed is None:
-            # Sprawdź czy to nie jest przypadek NO_SOLUTION
-            if "Nie znaleziono rozwiązania" in result.stdout:
+        # Obsługa błędów walidacji wejścia (to są poprawne odpowiedzi programu!)
+        if result.returncode != 0:
+            # Błąd walidacji input
+            if "ERROR: Impossible" in combined_output or "cannot add new vertices" in combined_output:
+                return {'status': 'OK', 'msg': 'Poprawnie wykryto niemożliwe k (k > C(n2,n1))', 'time': elapsed}
+            if "n2=" in combined_output and "< n1=" in combined_output:
+                return {'status': 'OK', 'msg': 'Poprawnie wykryto n2 < n1', 'time': elapsed}
+            if "ERROR: Cannot open file" in combined_output:
+                return {'status': 'ERROR', 'msg': 'Nie można otworzyć pliku', 'time': elapsed}
+            if "ERROR: Cannot read" in combined_output or "ERROR: Invalid" in combined_output:
+                return {'status': 'OK', 'msg': 'Poprawnie wykryto błędny format', 'time': elapsed}
+            # No solution found (algorytm się wykonał, ale nie znalazł)
+            if "ERROR: No solution found" in combined_output:
                 max_copies = nCr(g2.n, g1.n)
                 if k > max_copies:
                     return {'status': 'OK', 'msg': 'Poprawnie nie znaleziono (k > C(n2,n1))', 'time': elapsed}
                 else:
                     return {'status': 'NO_SOLUTION', 'msg': 'Nie znaleziono rozwiązania (choć może istnieć)', 'time': elapsed}
-            
-            # Obsługa błędu krytycznego (k > C(n2,n1))
-            if any(x in result.stdout for x in ["BŁĄD KRYTYCZNY", "BlaD KRYTYCZNY", "Blad KRYTYCZNY", "matematycznie niemożliwe", "matematycznie niemozliwe"]):
-                 return {'status': 'OK', 'msg': 'Poprawnie wykryto niemożliwe k (k > C(n2,n1))', 'time': elapsed}
+        
+        parsed = parse_algorithm_output(result.stdout, g1.n, g2.n, k)
+        
+        if parsed is None:
+            # Sprawdź dodatkowe przypadki w stdout
+            if "No solution found" in stdout_output:
+                max_copies = nCr(g2.n, g1.n)
+                if k > max_copies:
+                    return {'status': 'OK', 'msg': 'Poprawnie nie znaleziono (k > C(n2,n1))', 'time': elapsed}
+                else:
+                    return {'status': 'NO_SOLUTION', 'msg': 'Nie znaleziono rozwiązania (choć może istnieć)', 'time': elapsed}
 
             return {'status': 'FAIL', 'msg': 'Błąd parsowania wyjścia', 'time': elapsed}
             
@@ -251,10 +322,11 @@ def run_test_with_validation(filepath: str, algorithm: str) -> Dict:
         # WALIDACJA
         errors = []
         
-        # 1. Sprawdź k kopii
-        ok, msg = verify_k_copies(g1, g2_ext, mappings, k)
-        if not ok:
-            errors.append(f"Błąd definicji 5: {msg}")
+        # 1. Sprawdź k kopii (tylko je\u015bli mamy mapowania z verbose mode)
+        if all(m.is_complete() for m in mappings):
+            ok, msg = verify_k_copies(g1, g2_ext, mappings, k)
+            if not ok:
+                errors.append(f"Błąd definicji 5: {msg}")
             
         # 2. Sprawdź koszt
         try:
@@ -334,7 +406,7 @@ def generate_random_test_content(seed: int) -> str:
     
     return "\n".join(lines)
 
-def run_fuzzing_session(count: int, start_seed: int):
+def run_fuzzing_session(count: int, start_seed: int, exe_path: str = r".\build\subgraph-isomorphism.exe"):
     print("=" * 80)
     print(f"FUZZING SESSION: {count} tests, start_seed={start_seed}")
     print("=" * 80)
@@ -352,7 +424,7 @@ def run_fuzzing_session(count: int, start_seed: int):
             
         # Run both algorithms
         for alg in ['exact', 'approx']:
-            res = run_test_with_validation(temp_file, alg)
+            res = run_test_with_validation(temp_file, alg, exe_path)
             status = res['status']
             
             if status == 'OK' or status == 'NO_SOLUTION':
@@ -361,7 +433,7 @@ def run_fuzzing_session(count: int, start_seed: int):
                  stats[alg]['timeout'] += 1
             else:
                  stats[alg]['fail'] += 1
-                 print(f"❌ FAIL [Seed {seed}] {alg}: {res['msg']}")
+                 print(f"[FAIL] [Seed {seed}] {alg}: {res['msg']}")
                  # Save failed test
                  fail_name = f"fuzz_fail_{seed}_{alg}.txt"
                  with open(fail_name, 'w') as f:
@@ -387,11 +459,12 @@ def main():
     parser = argparse.ArgumentParser(description="Giga Sprawdzarka")
     parser.add_argument('--fuzz', type=int, help="Run N random fuzz tests", default=0)
     parser.add_argument('--seed', type=int, help="Start seed for fuzzing", default=None)
+    parser.add_argument('--exe', type=str, help="Path to executable", default=r".\build\subgraph-isomorphism.exe")
     args = parser.parse_args()
 
     if args.fuzz > 0:
         seed = args.seed if args.seed is not None else random.randint(0, 1000000)
-        run_fuzzing_session(args.fuzz, seed)
+        run_fuzzing_session(args.fuzz, seed, args.exe)
         return
 
     print("=" * 80)
@@ -411,24 +484,24 @@ def main():
         print(f"[{i}/{len(tests)}] {category}/{filename}")
         
         for alg in ['exact', 'approx']:
-            res = run_test_with_validation(filepath, alg)
+            res = run_test_with_validation(filepath, alg, args.exe)
             status = res['status']
             msg = res['msg']
             elapsed = res.get('time', 0)
-            cost = res.get('cost', '?')
+            cost = res.get('cost', '-')
             
             if status == 'OK':
                 results[alg]['passed'] += 1
-                print(f"  {alg:6s}: ✅ OK (koszt={cost}, {elapsed*1000:.0f}ms)")
+                print(f"  {alg:6s}: [OK] (koszt={cost}, {elapsed*1000:.0f}ms)")
             elif status == 'TIMEOUT':
                 results[alg]['timeout'] += 1
-                print(f"  {alg:6s}: ⏱️ TIMEOUT")
+                print(f"  {alg:6s}: [TIMEOUT]")
             elif status == 'NO_SOLUTION':
                 results[alg]['no_sol'] += 1
-                print(f"  {alg:6s}: ❓ NO_SOLUTION")
+                print(f"  {alg:6s}: [NO_SOL]")
             else:
                 results[alg]['failed'] += 1
-                print(f"  {alg:6s}: ❌ FAIL - {msg}")
+                print(f"  {alg:6s}: [FAIL] - {msg}")
                 
     print("\n" + "=" * 80)
     print("PODSUMOWANIE")

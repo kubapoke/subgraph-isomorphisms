@@ -16,8 +16,11 @@ cmake --build . --config Release
 ## Uruchamianie
 
 ```bash
-./build/subgraph-isomorphism.exe [plik_z_danymi] [algorytm]
+./build/subgraph-isomorphism.exe [plik_z_danymi] [-a] [-v]
 ```
+
+-   `-v`: verbose
+-   `-a`: algorytm aproksymacyjny
 
 -   `algorytm`: `exact` (domyślny) lub `approx`
 
