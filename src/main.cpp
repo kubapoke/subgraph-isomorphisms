@@ -111,7 +111,6 @@ struct Solution {
     Mappings mappings;
     uint64_t cost;
     bool found;
-    bool oneBranch = false;
 
     Solution() : cost(-1), found(false) {}
     Solution(Graph&& extendedGraph, Mappings&& mappings, const uint64_t cost) : extendedGraph(std::move(extendedGraph)), mappings(std::move(mappings)), cost(cost), found(false) {}
@@ -259,13 +258,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
 // Forward declaration dla exactAlgorithm (potrzebne dla initializeApproximateExpansion)
 Solution exactAlgorithm(const Graph& g1, const Graph& g2, int k, bool oneBranch);
 
-// NOWY ALGORYTM INICJALIZACJI APROKSYMACYJNEJ:
-// 1. Znajdujemy pierwszą kopię używając algorytmu dokładnego (k=1)
-// 2. Kolejne kopie znajdujemy modyfikując mapowanie:
-//    - Bierzemy ostatni w porządku wierzchołek
-//    - Ustawiamy dla niego po kolei wszystkie możliwe mapowania
-//    - Jak mapowanie nie jest izomorficzne z żadnym już istniejącym, zapisujemy
-//    - Po rozważeniu wszystkich opcji przesuwamy się o wierzchołek wyżej
+// Inicjalizacja rozszerzenia aproksymacyjnego
 Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const uint32_t copiesCount) {
     if (copiesCount == 0) {
         Solution noSolution;
@@ -644,7 +637,8 @@ void recursiveBranching(
     uint64_t currentCost,    // n - biezacy koszt
     bool prefixEqual,        // czy wczesniejsze przypisania w M_i sa takie same jak w M_{i-1}
     Solution& bestSolution,  // Globalne najlepsze rozwiazanie (in/out)
-    const int k              // Liczba kopii
+    const int k,              // Liczba kopii
+    bool oneBranch
 ) {
     // Jesli zmapowalismy juz wszystkie wierzcholki biezacej kopii
     if (vertexIndex >= g1.n) {
@@ -664,7 +658,7 @@ void recursiveBranching(
         } else {
             // Przechodzimy do kolejnej kopii
             recursiveBranching(copyIndex + 1, 0, order, g1, g2, gExtended, 
-                             mappings, currentCost, true, bestSolution, k);
+                             mappings, currentCost, true, bestSolution, k, oneBranch);
         }
         return;
     }
@@ -792,9 +786,9 @@ void recursiveBranching(
 
         // Wywolanie rekurencyjne
         recursiveBranching(copyIndex, vertexIndex + 1, order, g1, g2, gExtended,
-                         mappings, newCost, newPrefixEqual, bestSolution, k);
+                         mappings, newCost, newPrefixEqual, bestSolution, k, oneBranch);
 
-        if (bestSolution.oneBranch && bestSolution.found)
+        if (oneBranch && bestSolution.found)
             return;
 
         // Cofnij zmiany w G'_2
@@ -809,7 +803,7 @@ void recursiveBranching(
 
 // Algorytm dokladny - glowna funkcja
 // Zgodnie z sekcja 3.7 dokumentacji: AlgorytmDokladny
-Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k, const bool oneBranch = false) {
+Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k, const bool oneBranch) {
     // Wyznacz porzadek wierzcholkow P
     const auto order = g1.verticesOrder();
 
@@ -819,11 +813,10 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k, const boo
     Solution bestSolution;
     bestSolution.cost = UINT64_MAX;
     bestSolution.found = false;
-    bestSolution.oneBranch = oneBranch;
 
     // Wywolaj rekurencje
     recursiveBranching(0, 0, order, g1, g2, gExtended, mappings, 
-                      0, false, bestSolution, k);
+                      0, false, bestSolution, k, oneBranch);
 
     return bestSolution;
 }
