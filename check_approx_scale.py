@@ -129,7 +129,7 @@ def parse_output(output: str, n1: int, n2: int, k: int):
         matrix_lines = []
         in_matrix = False
         for line in lines:
-            if 'Rozszerzony graf' in line or 'Extended graph' in line or "G'_2" in line: 
+            if 'Rozszerzony graf' in line or 'Extended graph' in line or "G'2" in line:
                 in_matrix = True
                 continue
             if in_matrix:
@@ -177,7 +177,7 @@ def parse_output(output: str, n1: int, n2: int, k: int):
 # ============================================================================
 
 def main():
-    exe = r".\build\subgraph-isomorphism.exe"
+    exe = r".\cmake-build-debug\subgraph-isomorphism.exe"
     test_file = "temp_scale_test.txt"
     
     scenarios = [
@@ -221,7 +221,7 @@ def main():
         try:
             # Nowy format: exe plik -a -v (dodajemy -v dla pełnej walidacji)
             result = subprocess.run(
-                [exe, test_file, "-a", "-v"],
+                [exe, test_file, "-a"],
                 capture_output=True, text=True, timeout=60
             )
             elapsed = time.time() - start
@@ -258,7 +258,7 @@ def main():
                 
         except subprocess.TimeoutExpired:
             print(f"n1={n1}, n2={n2}, k={k:<4} | >60000ms   | {'-':<10} | [TIMEOUT]")
-            
+
     if os.path.exists(test_file):
         os.remove(test_file)
 
