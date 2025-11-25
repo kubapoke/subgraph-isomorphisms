@@ -972,7 +972,6 @@ void printUsage(const char* programName) {
     std::cout << "\nOptions:" << std::endl;
     std::cout << "  -a, --approx     Use approximate algorithm (default: exact)" << std::endl;
     std::cout << "  -r, --raw    Show simple output without details" << std::endl;
-    std::cout << "  -h, --help       Show this help message" << std::endl;
     std::cout << "\nInput file format:" << std::endl;
     std::cout << "  n1" << std::endl;
     std::cout << "  adjacency_matrix_G1 (n1 x n1)" << std::endl;
