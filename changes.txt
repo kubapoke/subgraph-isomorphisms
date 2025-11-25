@@ -1,0 +1,15 @@
+﻿Plik zawiera zmiany/ustalenia dotyczące działania algorytmu w stosunku do raportu wstępnego:
+
+1. Ostatecznie nie zostało wykorzystane ulepszenie algorytmu poprzez dobieranie wierzchołków w jednocznaczne
+dla rozszerzenia klasy abstrakcji. Metoda ta, choć mogłaby okazać się przydatna dla k=1, traci na wartości
+przy obliczaniu rozszerzenia dla wielu kopii grafu G1. Wówczas należy uwzględniać dla każdego wierzchołka
+nie tylko jego sąsiadów w rozszerzonym grafie G2, ale również jego przyporządkowania dla poprzednich kopii,
+co nie tylko komplikuje proces, ale również osłabia jego (i tak podważaną przez nas) efektywność.
+
+2. Wbrew temu, co zostało napisane w raporcie wstępnym, sortowanie mapowań w porządku kanonicznym nie gwarantuje
+wzajemnej różności ich obrazów. Większość algorytmów działa w identyczny do opisanego sposób, poza dwoma wyjątkami:
+- W algorytmie dokładnym, po wyznaczaniu mapowania, trzeba w manualny sposób sprawdzić, czy posiada ono unikalny
+obraz. Jest to dodatkowy zestaw operacji, nie zwiększa on jednak złożoności asymptotycznej algorytmu.
+- W części inicjalizacyjnej algorytmu aproksymacyjnego używamy algorytmu dokładnego do znalezienia mapowania
+tylko jednej kopii grafu G1, z którego następnie wyznaczamy kolejne wykonując inkrementalnie operacje zmiany
+mapowań pojedynczych wierzchołków. Złożoność asymptotyczna algorytmu pozostaje wielomianowa.
