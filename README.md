@@ -78,5 +78,4 @@ Program opisuje najpierw instancję wejściową, po czym wypisuje osiągnięte p
 - Mappings -- opisuje mapowania wierzchołków kolejnych kopii grafu G1 na wierzchołki grafu G2.
 - Extended graph G'2 -- macierz sąsiedztwa rozszerzonego grafu G'2 zawierającego k kopii grafu G1.
 
-Wyniki działania programu są zapisane również do pliku `out.txt` w bieżącym katalogu
-.
+Wyniki działania programu są zapisane również do pliku `out.txt` w bieżącym katalogu.
