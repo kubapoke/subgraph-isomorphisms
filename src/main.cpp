@@ -899,32 +899,32 @@ bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& 
 }
 
 // Wypisz graf
-void printGraph(const Graph& g, const std::string& name) {
-    std::cout << name << " (n=" << g.n << ", m=" << g.totalEdges() << "):" << std::endl;
+void printGraph(ostream& o, const Graph& g, const std::string& name) {
+    o << name << " (n=" << g.n << ", m=" << g.totalEdges() << "):" << std::endl;
     for (int i = 0; i < g.n; ++i) {
         for (int j = 0; j < g.n; ++j) {
-            std::cout << g.matrix[i][j];
-            if (j < g.n - 1) std::cout << " ";
+            o << g.matrix[i][j];
+            if (j < g.n - 1) o << " ";
         }
-        std::cout << std::endl;
+        o << std::endl;
     }
-    std::cout << std::endl;
+    o << std::endl;
 }
 
 // Wypisz tylko macierz (bez ozdobników)
-void printMatrixOnly(const Graph& g) {
+void printMatrixOnly(ostream& o, const Graph& g) {
     for (int i = 0; i < g.n; ++i) {
         for (int j = 0; j < g.n; ++j) {
-            std::cout << g.matrix[i][j];
-            if (j < g.n - 1) std::cout << " ";
+            o << g.matrix[i][j];
+            if (j < g.n - 1) o << " ";
         }
-        std::cout << std::endl;
+        o << std::endl;
     }
 }
 
 // Wypisz rozwiazanie - verbose mode
-void printSolutionVerbose(const Solution& sol, const Graph& g1, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
-    std::cout << "\n=== Results from " << algName << " algorithm ===" << std::endl;
+void printSolutionVerbose(ostream& o, const Solution& sol, const Graph& g1, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
+    o << "=== Results from " << algName << " algorithm ===" << std::endl;
     if (!sol.found || sol.cost == UINT64_MAX) {
         std::cerr << "ERROR: Solution not found." << std::endl;
         const uint64_t maxMappings = binomialCoefficient(n2, n1);
@@ -938,33 +938,33 @@ void printSolutionVerbose(const Solution& sol, const Graph& g1, const Graph& g2,
         return;
     }
 
-    std::cout << "Extension cost: " << sol.cost << std::endl;
-    
-    std::cout << "\nMappings:" << std::endl;
+    o << "Extension cost: " << sol.cost << std::endl;
+
+    o << "\nMappings:" << std::endl;
     for (int i = 0; i < sol.mappings.k; ++i) {
-        std::cout << "  Copy " << (i+1) << ": ";
+        o << "  Copy " << (i+1) << ": ";
         for (int j = 0; j < sol.mappings.n; ++j) {
-            if (j > 0) std::cout << ", ";
-            std::cout << j << "->" << sol.mappings.maps[i][j];
+            if (j > 0) o << ", ";
+            o << j << "->" << sol.mappings.maps[i][j];
         }
-        std::cout << std::endl;
+        o << std::endl;
     }
 
-    std::cout << "\nExtended graph G'2:" << std::endl;
-    printGraph(sol.extendedGraph, "G'2");
+    o << "\nExtended graph G'2:" << std::endl;
+    printGraph(o, sol.extendedGraph, "G'2");
 }
 
 // Wypisz rozwiazanie - simple mode (tylko wynik)
-void printSolutionSimple(const Solution& sol) {
+void printSolutionSimple(ostream& o, const Solution& sol) {
     if (!sol.found || sol.cost == UINT64_MAX) {
         std::cerr << "ERROR: No solution found" << std::endl;
         return;
     }
     
     // Format: n, macierz, koszt
-    std::cout << sol.extendedGraph.n << std::endl;
-    printMatrixOnly(sol.extendedGraph);
-    std::cout << sol.cost << std::endl;
+    o << sol.extendedGraph.n << std::endl;
+    printMatrixOnly(o, sol.extendedGraph);
+    o << sol.cost << std::endl;
 }
 
 void printUsage(const char* programName) {
@@ -1000,10 +1000,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "-h" || arg == "--help") {
-            printUsage(argv[0]);
-            return 0;
-        } else if (arg == "-a" || arg == "--approx") {
+        if (arg == "-a" || arg == "--approx") {
             useApprox = true;
         } else if (arg == "-r" || arg == "--raw") {
             verbose = false;
@@ -1046,8 +1043,8 @@ int main(int argc, char* argv[]) {
     // Wypisz dane wejsciowe (tylko w verbose mode)
     if (verbose) {
         std::cout << "\n=== Input ===" << std::endl;
-        printGraph(g1, "G1");
-        printGraph(g2, "G2");
+        printGraph(std::cout, g1, "G1");
+        printGraph(std::cout, g2, "G2");
         std::cout << "Number of copies k: " << k << std::endl;
         std::cout << "Max possible distinct embeddings: C(" << g2.n << "," << g1.n << ")=" << maxMappings << std::endl;
     }
@@ -1058,7 +1055,7 @@ int main(int argc, char* argv[]) {
     
     std::string algName = useApprox ? "approximate" : "exact";
     if (verbose) {
-        std::cout << "\nRunning " << algName << " algorithm..." << std::endl;
+        std::cout << "\nRunning " << algName << " algorithm...\n" << std::endl;
     }
     
     if (useApprox) {
@@ -1082,30 +1079,24 @@ int main(int argc, char* argv[]) {
 
     // Wypisz wyniki
     if (verbose) {
-        printSolutionVerbose(solution, g1, g2, algName, g1.n, g2.n, k);
+        printSolutionVerbose(std::cout, solution, g1, g2, algName, g1.n, g2.n, k);
         std::cout << "Execution time: " << duration.count() << " ms" << std::endl;
     } else {
-        printSolutionSimple(solution);
+        printSolutionSimple(std::cout, solution);
     }
 
     // Zapisz wynik do pliku output (obok exe)
     std::ofstream outFile("out.txt");
     if (outFile.is_open()) {
         // Format: n, macierz, koszt
-        outFile << solution.extendedGraph.n << std::endl;
-        for (int i = 0; i < solution.extendedGraph.n; ++i) {
-            for (int j = 0; j < solution.extendedGraph.n; ++j) {
-                outFile << solution.extendedGraph.matrix[i][j];
-                if (j < solution.extendedGraph.n - 1) outFile << " ";
-            }
-            outFile << std::endl;
-        }
-        outFile << solution.cost << std::endl;
-        outFile.close();
-        
         if (verbose) {
+            printSolutionVerbose(outFile, solution, g1, g2, algName, g1.n, g2.n, k);
             std::cout << "\nResult saved to out.txt" << std::endl;
+        } else {
+            printSolutionSimple(outFile, solution);
         }
+
+
     } else {
         if (verbose) {
             std::cerr << "Warning: Could not create out.txt" << std::endl;

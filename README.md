@@ -5,7 +5,7 @@ które zawiera k różnych kopii zadanego grafu G1.
 
 ## Założenia
 
-Założenia działania programu pozostają zgodne z dokumentacją, w sczególności:
+Założenia działania programu pozostają zgodne z dokumentacją, w szczególności:
 - Zakładamy, że |G1| <= |G2|.
 - Nasze rozszerzenie dodaje do grafu G2 jedynie krawędzie.
 
@@ -77,3 +77,6 @@ Program opisuje najpierw instancję wejściową, po czym wypisuje osiągnięte p
 - Extension cost -- koszt rozszerzenia zgodnie z definicją w dokumentacji.
 - Mappings -- opisuje mapowania wierzchołków kolejnych kopii grafu G1 na wierzchołki grafu G2.
 - Extended graph G'2 -- macierz sąsiedztwa rozszerzonego grafu G'2 zawierającego k kopii grafu G1.
+
+Wyniki działania programu są zapisane również do pliku `out.txt` w bieżącym katalogu
+.
