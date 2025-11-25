@@ -972,7 +972,7 @@ void printUsage(const char* programName) {
     std::cout << "Usage: " << programName << " <input_file> [options]" << std::endl;
     std::cout << "\nOptions:" << std::endl;
     std::cout << "  -a, --approx     Use approximate algorithm (default: exact)" << std::endl;
-    std::cout << "  -v, --verbose    Show detailed input/output with mappings" << std::endl;
+    std::cout << "  -r, --raw    Show simple output without details" << std::endl;
     std::cout << "  -h, --help       Show this help message" << std::endl;
     std::cout << "\nInput file format:" << std::endl;
     std::cout << "  n1" << std::endl;
@@ -990,7 +990,7 @@ void printUsage(const char* programName) {
 int main(int argc, char* argv[]) {
     std::string filename;
     bool useApprox = false;
-    bool verbose = false;
+    bool verbose = true;
 
     // Parsowanie argumentow
     if (argc < 2) {
@@ -1006,8 +1006,8 @@ int main(int argc, char* argv[]) {
             return 0;
         } else if (arg == "-a" || arg == "--approx") {
             useApprox = true;
-        } else if (arg == "-v" || arg == "--verbose") {
-            verbose = true;
+        } else if (arg == "-r" || arg == "--raw") {
+            verbose = false;
         } else if (arg[0] == '-') {
             std::cerr << "ERROR: Unknown option: " << arg << std::endl;
             printUsage(argv[0]);
