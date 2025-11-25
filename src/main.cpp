@@ -939,7 +939,6 @@ void printSolutionVerbose(const Solution& sol, const Graph& g1, const Graph& g2,
     }
 
     std::cout << "Extension cost: " << sol.cost << std::endl;
-    std::cout << "Added edges: " << (sol.extendedGraph.totalEdges() - g2.totalEdges()) << std::endl;
     
     std::cout << "\nMappings:" << std::endl;
     for (int i = 0; i < sol.mappings.k; ++i) {
@@ -951,8 +950,8 @@ void printSolutionVerbose(const Solution& sol, const Graph& g1, const Graph& g2,
         std::cout << std::endl;
     }
 
-    std::cout << "\nExtended graph G'_2:" << std::endl;
-    printGraph(sol.extendedGraph, "G'_2");
+    std::cout << "\nExtended graph G'2:" << std::endl;
+    printGraph(sol.extendedGraph, "G'2");
 }
 
 // Wypisz rozwiazanie - simple mode (tylko wynik)

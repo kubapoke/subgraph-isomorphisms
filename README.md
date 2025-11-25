@@ -1,53 +1,79 @@
-# Subgraph Isomorphisms
+# Teoria algorytmów i obliczeń - implementacja algortymów
 
-Projekt implementuje algorytmy (dokładny i aproksymacyjny) dla problemu znalezienia minimalnego rozszerzenia grafu $G_2$ (oznaczanego jako $G'_2$), które zawiera $k$ rozłącznych kopii zadanego grafu $G_1$.
+Projekt implementuje algorytmy (dokładny i aproksymacyjny) dla problemu znalezienia minimalnego rozszerzenia grafu G2, 
+które zawiera k różnych kopii zadanego grafu G1.
 
-## Budowanie
+## Założenia
 
-Wymagany CMake oraz kompilator C++ (np. MinGW, MSVC).
-
-```bash
-mkdir build
-cd build
-cmake ..
-cmake --build . --config Release
-```
+Założenia działania programu pozostają zgodne z dokumentacją, w sczególności:
+- Zakładamy, że |G1| <= |G2|.
+- Nasze rozszerzenie dodaje do grafu G2 jedynie krawędzie.
 
 ## Uruchamianie
 
 ```bash
-./build/subgraph-isomorphism.exe [plik_z_danymi] [-a] [-v]
+./subgraph-isomorphism.exe [plik_z_danymi] [-a] [-r]
 ```
 
--   `-v`: verbose
--   `-a`: algorytm aproksymacyjny
+Po wywołaniu program domyślnie uruchamia algorytm dokładny.
+Aby uruchomić algorytm aproksymacyjny, należy wywołać program z flagą `-a`.
 
--   `algorytm`: `exact` (domyślny) lub `approx`
+Program akceptuje następujące flagi:
+-   `-a, --approx`: algorytm aproksymacyjny
+-   `-r, --raw`: surowe, niesformatowane wyjście do łatwego przetwarzania
 
 ## Format pliku wejściowego
 
+Zadany plik wejściowy z instancją problemu powinien przyjmować następujący format:
+
 ```text
 n1                  <-- Liczba wierzchołków G1
-0 1 ...             <-- Macierz sąsiedztwa G1 (wiersz 1)
+0 1 ...             <-- Macierz sąsiedztwa G1 (n1 x n1)
 ...
 n2                  <-- Liczba wierzchołków G2
-0 2 ...             <-- Macierz sąsiedztwa G2 (wiersz 1)
+0 2 ...             <-- Macierz sąsiedztwa G2 (n2 x n2)
 ...
 k                   <-- Liczba kopii do znalezienia
 ```
 
-## Testowanie
+## Przykładowe wyjście
 
-Do weryfikacji poprawności służy skrypt `giga_sprawdzarka.py`, który sprawdza zgodność wyników z definicjami matematycznymi.
+Program wypisuje wynik działania algorytmu na konsolę.
+Przykładowe wyjście działania programu wygląda następująco:
 
-**Uruchomienie wszystkich testów (160+ plików):**
+```text
+=== Input ===
+G1 (n=3, m=6):
+0 1 1
+1 0 1
+1 1 0
 
-```bash
-python giga_sprawdzarka.py
+G2 (n=3, m=1):
+0 1 0
+0 0 0
+0 0 0
+
+Number of copies k: 1
+Max possible distinct embeddings: C(3,3)=1
+
+Running exact algorithm...
+
+=== Results from exact algorithm ===
+Extension cost: 5
+
+Mappings:
+  Copy 1: 0->0, 1->1, 2->2
+
+Extended graph G'2:
+G'2 (n=3, m=6):
+0 1 1
+1 0 1
+1 1 0
+
+Execution time: 1 ms
 ```
 
-**Uruchomienie Fuzzingu (losowe testy):**
-
-```bash
-python giga_sprawdzarka.py --fuzz 100
-```
+Program opisuje najpierw instancję wejściową, po czym wypisuje osiągnięte przez wybrany algorytm wyniki, gdzie:
+- Extension cost -- koszt rozszerzenia zgodnie z definicją w dokumentacji.
+- Mappings -- opisuje mapowania wierzchołków kolejnych kopii grafu G1 na wierzchołki grafu G2.
+- Extended graph G'2 -- macierz sąsiedztwa rozszerzonego grafu G'2 zawierającego k kopii grafu G1.
