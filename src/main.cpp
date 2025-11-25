@@ -7,7 +7,6 @@
 #include <sstream>
 #include <string>
 #include <chrono>
-#include <iomanip>
 
 using namespace std;
 
@@ -112,6 +111,7 @@ struct Solution {
     Mappings mappings;
     uint64_t cost;
     bool found;
+    bool oneBranch = false;
 
     Solution() : cost(-1), found(false) {}
     Solution(Graph&& extendedGraph, Mappings&& mappings, const uint64_t cost) : extendedGraph(std::move(extendedGraph)), mappings(std::move(mappings)), cost(cost), found(false) {}
@@ -139,7 +139,7 @@ int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended
         }
     }
     
-    // POPRAWKA: Dodaj koszt petli (self-loop)
+    // Dodaj koszt petli (self-loop)
     const int reqSelfLoop = G1.matrix[u][u];
     const int currSelfLoop = G2Extended.matrix[v][v];
     if (currSelfLoop < reqSelfLoop) {
@@ -177,8 +177,8 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
         int haveIn = extended.matrix[mappedX][v];
         covered += std::min(reqIn, haveIn);
     }
-    
-    // POPRAWKA: Dodaj pokrycie petli (self-loop)
+
+    // Dodaj pokrycie petli (self-loop)
     int reqSelfLoop = g1.matrix[u][u];
     int haveSelfLoop = extended.matrix[v][v];
     covered += std::min(reqSelfLoop, haveSelfLoop);
@@ -215,12 +215,12 @@ Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, 
     // 3. Maksymalny stopien wierzcholka (wiecej lepiej, wiec malejaco)
     std::sort(candidates.begin(), candidates.end(), [&extended](const Candidate &a, const Candidate &b) {
         if (a.deltaExist != b.deltaExist) {
-            return a.deltaExist > b.deltaExist;  // POPRAWKA: malejaco (wiecej pokrytych krawedzi to lepiej)
+            return a.deltaExist > b.deltaExist;
         }
         if (a.deltaCost != b.deltaCost) {
-            return a.deltaCost < b.deltaCost;  // POPRAWKA: rosnaco (mniejszy koszt to lepiej)
+            return a.deltaCost < b.deltaCost;
         }
-        return extended.degree(a.v) > extended.degree(b.v);  // POPRAWKA: malejaco (wiekszy stopien to lepiej)
+        return extended.degree(a.v) > extended.degree(b.v);
     });
     return candidates;
 }
@@ -248,7 +248,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
         }
     }
     
-    // POPRAWKA: Dodaj obsluge petli (self-loop)
+    // Dodaj obsluge petli (self-loop)
     const int reqSelfLoop = g1.matrix[u][u];
     int& currSelfLoop = extended.matrix[v][v];
     if (currSelfLoop < reqSelfLoop) {
@@ -257,7 +257,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
 }
 
 // Forward declaration dla exactAlgorithm (potrzebne dla initializeApproximateExpansion)
-Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k);
+Solution exactAlgorithm(const Graph& g1, const Graph& g2, int k, bool oneBranch);
 
 // NOWY ALGORYTM INICJALIZACJI APROKSYMACYJNEJ:
 // 1. Znajdujemy pierwszą kopię używając algorytmu dokładnego (k=1)
@@ -274,8 +274,8 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         return noSolution;
     }
     
-    // Krok 1: Użyj algorytmu dokładnego dla k=1 aby znaleźć pierwszą kopię
-    Solution firstCopy = exactAlgorithm(g1, g2, 1);
+    // Użyj algorytmu dokładnego dla k=1 aby znaleźć pierwszą kopię
+    Solution firstCopy = exactAlgorithm(g1, g2, 1, true);
     
     if (!firstCopy.found || firstCopy.cost == UINT64_MAX) {
         // Nie udało się znaleźć nawet jednej kopii
@@ -290,7 +290,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         return firstCopy;
     }
     
-    // Krok 2: Dla kolejnych kopii (i >= 1) modyfikujemy mapowanie
+    // Dla kolejnych kopii (i >= 1) modyfikujemy mapowanie
     auto extended = firstCopy.extendedGraph;
     auto mappings = Mappings(copiesCount, g1.n);
     
@@ -428,7 +428,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
 
 
 Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
-    // POPRAWKA: Jesli wejsciowe rozwiazanie nie zostalo znalezione, zwroc je bez zmian
+    // Jesli wejsciowe rozwiazanie nie zostalo znalezione, zwroc je bez zmian
     if (!s.found) {
         return s;
     }
@@ -450,7 +450,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     vector<int> currentMapping = s.mappings.maps[i]; // aktualne mapowanie dla kopii i(zapisane, by na koncu moc cofnac zmiany)
                     auto it = std::find(s.mappings.maps[i].begin(), s.mappings.maps[i].end(), v);
                     int oldUMapping;
-                    int delta = 0;  // POPRAWKA: inicjalizacja na 0!
+                    int delta = 0;  // inicjalizacja na 0
                     if (it != s.mappings.maps[i].end()) { // jezeli jakis wierzcholek z G1 juz jest mapowany n v
                         int vertexMappedToV = distance(s.mappings.maps[i].begin(), it); // wierzcholek G1, ktory aktualnie jest mapowany na v
                         oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
@@ -517,7 +517,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                     }
 
                     vector<int> newMapping = s.mappings.maps[i];
-                    // POPRAWKA: Odfiltruj NO_MAPPING przed utworzeniem zbioru!
+                    // Odfiltruj NO_MAPPING przed utworzeniem zbioru!
                     set<int> vset;
                     for (int val : s.mappings.maps[i]) {
                         if (val != Mappings::NO_MAPPING) {
@@ -562,8 +562,6 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                             matrixForNewBestMapping = modifiedMatrix;
                         }
                     }
-
-
                 }
             }
         }
@@ -576,23 +574,10 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
 
     }
 
-    // POPRAWKA: Przelicz koszt od zera na samym koncu, aby uniknac bledow akumulacji (drift)
-    // w skomplikowanej logice delta.
-    uint64_t trueCost = 0;
-    for(int i=0; i<s.extendedGraph.n; ++i) {
-        for(int j=0; j<s.extendedGraph.n; ++j) {
-            if (s.extendedGraph.matrix[i][j] > g2.matrix[i][j]) {
-                trueCost += (s.extendedGraph.matrix[i][j] - g2.matrix[i][j]);
-            }
-        }
-    }
-    s.cost = trueCost;
-
     return s;
 }
 
 // Funkcja pomocnicza: sprawdza czy obraz mapowania jest rozny od wszystkich poprzednich kopii
-// KLUCZOWE: Im(Mi) ≠ Im(Mj) dla i ≠ j
 bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
     if (currentCopy == 0) return true; // Pierwsza kopia zawsze unikalna
     
@@ -684,8 +669,7 @@ void recursiveBranching(
         return;
     }
 
-    // Przycinanie galezi - ale tylko jesli juz znalezlismy jakies rozwiazanie
-    // POPRAWKA: Nie przycinaj jesli jeszcze nie mamy rozwiazania!
+    // Przycinanie galezi
     if (bestSolution.found && currentCost >= bestSolution.cost) {
         return;
     }
@@ -794,7 +778,7 @@ void recursiveBranching(
             }
         }
         
-        // POPRAWKA: Dodaj obsluge petli (self-loop) dla wierzcholka u
+        // Dodaj obsluge petli (self-loop) dla wierzcholka u
         const int reqSelfLoop = g1.matrix[u][u];
         int& currSelfLoop = gExtended.matrix[v][v];
         if (currSelfLoop < reqSelfLoop) {
@@ -810,6 +794,9 @@ void recursiveBranching(
         recursiveBranching(copyIndex, vertexIndex + 1, order, g1, g2, gExtended,
                          mappings, newCost, newPrefixEqual, bestSolution, k);
 
+        if (bestSolution.oneBranch && bestSolution.found)
+            return;
+
         // Cofnij zmiany w G'_2
         for (const auto& change : edgeChanges) {
             gExtended.matrix[change.first.first][change.first.second] = change.second;
@@ -822,7 +809,7 @@ void recursiveBranching(
 
 // Algorytm dokladny - glowna funkcja
 // Zgodnie z sekcja 3.7 dokumentacji: AlgorytmDokladny
-Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k) {
+Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k, const bool oneBranch = false) {
     // Wyznacz porzadek wierzcholkow P
     const auto order = g1.verticesOrder();
 
@@ -832,6 +819,7 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k) {
     Solution bestSolution;
     bestSolution.cost = UINT64_MAX;
     bestSolution.found = false;
+    bestSolution.oneBranch = oneBranch;
 
     // Wywolaj rekurencje
     recursiveBranching(0, 0, order, g1, g2, gExtended, mappings, 
@@ -1084,7 +1072,7 @@ int main(int argc, char* argv[]) {
     if (useApprox) {
         solution = approximateExpansion(g1, g2, k);
     } else {
-        solution = exactAlgorithm(g1, g2, k);
+        solution = exactAlgorithm(g1, g2, k, false);
     }
     
     auto endTime = std::chrono::high_resolution_clock::now();
