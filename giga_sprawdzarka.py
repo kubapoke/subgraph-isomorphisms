@@ -268,7 +268,6 @@ def run_test_with_validation(filepath: str, algorithm: str, exe_path: str = r".\
         if algorithm == 'approx':
             cmd.append('-a')
         # Dodajemy -v aby uzyska\u0107 mapowania do walidacji
-        cmd.append('-v')
         
         result = subprocess.run(
             cmd,
