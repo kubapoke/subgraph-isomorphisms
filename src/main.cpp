@@ -553,7 +553,6 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 , Graph g2) {
                         bool isMappingValid = true;
 
                         // Jesli to nie byl swap (czyli zmienil sie zbior wartosci), to sprawdzamy unikalnosc.
-                        // Jesli to byl swap, zachowujemy stary zbior (wiec nie psujemy bardziej niz bylo)
                         if (!isSwap) {
                             for (const auto& mp : s.mappings.maps) {
                                 std::set<int> mpSet(mp.begin(), mp.end());

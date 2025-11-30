@@ -1,0 +1,14 @@
+TEST 4: Dwie pętle (self-loops)
+G1: Dwa wierzchołki, każdy z pętlą
+    0: pętla (0→0)
+    1: pętla (1→1)
+G2: Pusty (2 wierzchołki, 0 krawędzi)
+k=1
+
+RĘCZNE OBLICZENIE:
+- Mapowanie: M(0)=0, M(1)=1
+- G1 wymaga:
+  * pętla na 0 (trzeba dodać)
+  * pętla na 1 (trzeba dodać)
+
+OCZEKIWANY KOSZT: 2
