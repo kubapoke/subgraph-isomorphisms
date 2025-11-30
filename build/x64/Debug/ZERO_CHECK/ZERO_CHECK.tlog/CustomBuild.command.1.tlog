@@ -1,0 +1,10 @@
+^C:\USERS\ZAPRZ\SOURCE\REPOS\KUBAPOKE\SUBGRAPH-ISOMORPHISMS\BUILD\CMAKEFILES\5F71636702B5B228685CAA9526F4B0C4\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/zaprz/source/repos/kubapoke/subgraph-isomorphisms -BC:/Users/zaprz/source/repos/kubapoke/subgraph-isomorphisms/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/zaprz/source/repos/kubapoke/subgraph-isomorphisms/build/subgraph-isomorphism.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
