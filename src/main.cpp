@@ -317,7 +317,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
     
     const auto order = g1.verticesOrder();
     
-    // Helper: sprawdza czy obraz i-tej kopii rozni się od wszystkich poprzednich
+    // Helper: sprawdza czy obraz i-tej kopii rozni sie od wszystkich poprzednich
     auto isImageUnique = [&](uint32_t currentCopy) -> bool {
         std::vector<int> currentImage;
         for (int u = 0; u < g1.n; ++u) {
@@ -344,12 +344,12 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
     };
 
     for (uint32_t copyIdx = 1; copyIdx < copiesCount; ++copyIdx) {
-        // Skopiuj poprzednią kopię jako punkt startowy
+        // Skopiuj poprzednia kopie jako punkt startowy
         mappings.maps[copyIdx] = mappings.maps[copyIdx - 1];
         
         bool foundUnique = false;
         
-        // Próbujemy modyfikować wierzchołki od konca do poczatku
+        // Probujemy modyfikować wierzcholki od konca do poczatku
         for (int vertexIdx = static_cast<int>(g1.n) - 1; vertexIdx >= 0 && !foundUnique; --vertexIdx) {
             const auto u = order[vertexIdx];
             
@@ -438,7 +438,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
     return solution;
 }
 
-// Funkcja usuwa krawędzie, które zostały dodane do wierzchołków v1 i v2 w rozszerzonym grafie. Zwraca koszt tej operacji.
+// Funkcja usuwa krawedzie, ktore zostaly dodane do wierzcholkow v1 i v2 w rozszerzonym grafie. Zwraca koszt tej operacji.
 int deleteEdgesAddedToVertices(vector<vector<int>>& modifiedExtendedGraph, int v1, int v2, Graph& g2) {
     int delta = 0;
     for (int k = 0; k < modifiedExtendedGraph.size(); k++) {
@@ -454,7 +454,7 @@ int deleteEdgesAddedToVertices(vector<vector<int>>& modifiedExtendedGraph, int v
     return delta;
 }
 
-// Funkcja dodaje krawędzie do rozszerzonego grafu, tak by wszystkie mapowania na wierzchołek v były poprawne, Zwraca koszt operacji
+// Funkcja dodaje krawedzie do rozszerzonego grafu, tak by wszystkie mapowania na wierzcholek v byly poprawne, Zwraca koszt operacji
 int addEdgesForGivenVertex(Mappings& mappings, Graph& g1, vector<vector<int>>& modifiedExtendedGraph, int v) {
     int delta = 0;
     for (int copynr = 0; copynr < mappings.k; copynr++) {
@@ -464,10 +464,10 @@ int addEdgesForGivenVertex(Mappings& mappings, Graph& g1, vector<vector<int>>& m
         if (vIterator != mappings.maps[copynr].end()) {
             int vertexMappedOnV = distance(mappings.maps[copynr].begin(), vIterator);
 
-            // dla każdego potencjalnego sąsiada v
+            // dla kazdego potencjalnego sasiada v
             for (int n = 0; n < g1.n; n++) {
 
-                // sprawdzenie czy z mapowania n wychodzi odpowiednia ilosc wierzchołkow do v i ewentualne dodanie brakujacych krawedzi
+                // sprawdzenie czy z mapowania n wychodzi odpowiednia ilosc wierzcholkow do v i ewentualne dodanie brakujacych krawedzi
                 int mappingOfN = mappings.maps[copynr][n];
                 int reqIn = g1.matrix[n][vertexMappedOnV];
                 int currIn = modifiedExtendedGraph[mappingOfN][v];
@@ -476,7 +476,7 @@ int addEdgesForGivenVertex(Mappings& mappings, Graph& g1, vector<vector<int>>& m
                     delta += (reqIn - currIn);
                 }
 
-                // sprawdzenie czy z v wychodzi odpowiednia ilosc wierzchołkow do mapowania n i ewentualne dodanie brakujacych krawedzi
+                // sprawdzenie czy z v wychodzi odpowiednia ilosc wierzcholkow do mapowania n i ewentualne dodanie brakujacych krawedzi
                 int reqOut = g1.matrix[vertexMappedOnV][n];
                 int currOut = modifiedExtendedGraph[v][mappingOfN];
                 if (reqOut > currOut) {
@@ -515,10 +515,10 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1, Graph g2) {
         for (int i = 0; i < s.mappings.k; i++) {
             // wybor wierzcholka ktory dostanie nowe mapowanie
             for (int u = 0; u < g1.n; u++) {
-                // wybor nowego mapowania dla wierzchołka u
+                // wybor nowego mapowania dla wierzcholka u
                 for (int v = 0; v < g2.n; v++) {
 
-                    // Kopia rozszerzonego grafu, na której będą przeporowadzane modyfikacje
+                    // Kopia rozszerzonego grafu, na ktorej beda przeporowadzane modyfikacje
                     vector<vector<int>> modifiedExtendedGraph = s.extendedGraph.matrix;
 
                     vector<int> oldMapping = s.mappings.maps[i];
@@ -541,15 +541,15 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1, Graph g2) {
                         s.mappings.maps[i][u] = v;
                     }
 
-                    // Ustawiamy liczności wszystkich krawędzie, wchodzących i wychodzących do v i starego mapowania u
+                    // Ustawiamy liczności wszystkich krawedzie, wchodzacych i wychodzacych do v i starego mapowania u
                     // na wartości z niezmodyfikowanego G2, poniewaz, przez zmiane mapowania, tylko one mogly zmienic
                     // swoja licznosc
                     delta = deleteEdgesAddedToVertices(modifiedExtendedGraph, v, oldUMapping, g2);
 
-                    // Dodajemy krawedzie tak, by wszystkie mapowania we wszystkich kopiach na wierzchołek v działały
+                    // Dodajemy krawedzie tak, by wszystkie mapowania we wszystkich kopiach na wierzcholek v dzialaly
                     delta += addEdgesForGivenVertex(s.mappings, g1, modifiedExtendedGraph, v);
 
-                    // Dodajemy krawedzie tak, by wszystkie mapowania we wszystkich kopiach na stare mapowanie u działały
+                    // Dodajemy krawedzie tak, by wszystkie mapowania we wszystkich kopiach na stare mapowanie u dzialaly
                     delta += addEdgesForGivenVertex(s.mappings, g1, modifiedExtendedGraph, oldUMapping);
 
                     vector<int> newMapping = s.mappings.maps[i];
@@ -581,7 +581,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1, Graph g2) {
                             }
                         }
 
-                        // Jeżeli aktualna zmiana jest korzystniejsza niż najlepsza znaleziona i mapowanie jest prawidłowe
+                        // Jezeli aktualna zmiana jest korzystniejsza niz najlepsza znaleziona i mapowanie jest prawidlowe
                         // To ustawiamy nowe najlepsze znalezione mapowanie
                         if (isMappingValid) {
                             bestDelta = delta;
@@ -595,7 +595,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1, Graph g2) {
             }
         }
 
-        // Jeżeli znaleziono lepsze mapowanie to podmieniamy je w rozwiązaniu i kontynuujemy algorytm
+        // Jezeli znaleziono lepsze mapowanie to podmieniamy je w rozwiazaniu i kontynuujemy algorytm
         if (betterSolution.ifFound) {
             s.mappings.maps[betterSolution.copyId] = betterSolution.newMapping;
             s.extendedGraph.matrix = betterSolution.newAdjacencyMatrix;
