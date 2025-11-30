@@ -4,14 +4,16 @@
 #include <cstdint>
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <string>
 #include <chrono>
 
 using namespace std;
 
+// Struktura reprezentujaca graf skierowany
 struct Graph {
+    // Liczba wierzcholkow
     int n;
+    // Macierz sasiedztwa
     std::vector<std::vector<int>> matrix;
 
     explicit Graph(const int vertices = 0) : n(vertices) {
@@ -21,7 +23,7 @@ struct Graph {
     Graph& operator=(const Graph&) = default;
     Graph(Graph&&) = default;
 
-    // Liczba krawedzi wchodzacych i wychodzacych z v.
+    // Liczba krawedzi wchodzacych i wychodzacych z v
     [[nodiscard]] uint32_t degree(const uint32_t v) const {
         uint32_t degree = 0;
 
@@ -33,6 +35,7 @@ struct Graph {
         return degree;
     }
 
+    // Liczba wszystkich krawedzi w grafie
     [[nodiscard]] uint64_t totalEdges() const {
         uint64_t count = 0;
         for(const auto& row : matrix) {
@@ -92,8 +95,13 @@ struct Graph {
     }
 };
 
+// Struktura reprezentujaca liste k mapowan.
 struct Mappings {
-    int n, k;
+    // Liczba wierzcholkow w kazdym mapowaniu
+    int n;
+    // Liczba mapowan
+    int k;
+    // Lista mapowan
     std::vector<std::vector<int>> maps;
 
     static constexpr int NO_MAPPING = -1;
@@ -106,10 +114,16 @@ struct Mappings {
     Mappings& operator=(const Mappings&) = default;
 };
 
+// Stuktura reprezentujaca rozwiazanie
 struct Solution {
+    // Rozszerzony graf
     Graph extendedGraph;
+    // Lista mapowan
     Mappings mappings;
+    // Koszt rozszerzenia grafu wejsciowego
     uint64_t cost;
+    // Flaga informujaca o tym, czy rozwiazanie zostalo znalezione
+    // (np. jest `false` w przypadku, gdy nie da sie znalezc k kopii bez dodawania wierzcholkow)
     bool found;
 
     Solution() : cost(-1), found(false) {}
@@ -121,8 +135,9 @@ struct Solution {
 int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended, const std::vector<int> &mapping) {
     int costIncrease = 0;
     for (size_t i = 0; i < mapping.size(); i++) {
+        // Pomijamy niezmapowane wierzcholki
         if (mapping[i] == Mappings::NO_MAPPING) {
-            continue;  // Pomijamy niezmapowane wierzcholki
+            continue;
         }
         const int reqOut = G1.matrix[u][i];
         const int reqIn = G1.matrix[i][u];
@@ -148,9 +163,14 @@ int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended
     return costIncrease;
 }
 
+// Struktura reprezentujaca kandydata do mapowania
+// Szczegoly: Sekcja 3.3 i algorytm 2 (WybierzKandydatow)
 struct Candidate {
+    // Wierzcholek, ktorego nalezy uzyc w mapowaniu
     uint32_t v;
+    // Koszt rozszerzenia potrzebneg, aby mapowanie na `v` bylo poprawne
     uint32_t deltaCost;
+    // Liczba krawedzi wychodzacych i wchodzacych do `v` juz istniejacych w mapowaniu (tzn. takie, ktorych nie bedzie trzeba dodawac)
     uint32_t deltaExist;
 
     explicit Candidate(const uint32_t v, const uint32_t deltaCost, const uint32_t deltaExist): v(v), deltaCost(deltaCost), deltaExist(deltaExist) {}
@@ -160,6 +180,8 @@ struct Candidate {
 
 typedef std::vector<Candidate> Candidates;
 
+// Oblicza deltaExist.
+// Patrz: Sekcja 3.3
 uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, const Graph& extended, const std::vector<int>& mapping) {
     uint32_t covered = 0;
     for (int x = 0; x < g1.n; ++x) {
@@ -177,7 +199,7 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
         covered += std::min(reqIn, haveIn);
     }
 
-    // Dodaj pokrycie petli (self-loop)
+    // Pokrycie petli (self-loop)
     int reqSelfLoop = g1.matrix[u][u];
     int haveSelfLoop = extended.matrix[v][v];
     covered += std::min(reqSelfLoop, haveSelfLoop);
@@ -185,6 +207,8 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
     return covered;
 }
 
+// Zwraca liste wierzcholkow (kandydatow), na ktore moze byc zmapowane u w kolejnosc wyznaczonej przez heurystyki.
+// Patrz: Sekcja 3.3 i algorytm 2.
 Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, const Graph &extended, const std::vector<int> &mapping) {
     auto candidates = std::vector<Candidate>();
 
@@ -198,7 +222,7 @@ Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, 
 
     for (int v = 0; v < g2.n; ++v) {
         // Pomin wierzcholki juz uzyte w biezacej kopii
-        if (usedVertices.count(v)) {
+        if (usedVertices.contains(v)) {
             continue;
         }
         
@@ -247,7 +271,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
         }
     }
     
-    // Dodaj obsluge petli (self-loop)
+    // Obsluga petli (self-loop)
     const int reqSelfLoop = g1.matrix[u][u];
     int& currSelfLoop = extended.matrix[v][v];
     if (currSelfLoop < reqSelfLoop) {
@@ -267,18 +291,18 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         return noSolution;
     }
     
-    // Użyj algorytmu dokładnego dla k=1 aby znaleźć pierwszą kopię
+    // Uzyj algorytmu dokladnego dla k=1 aby znalezc pierwsza kopie
     Solution firstCopy = exactAlgorithm(g1, g2, 1, true);
     
     if (!firstCopy.found || firstCopy.cost == UINT64_MAX) {
-        // Nie udało się znaleźć nawet jednej kopii
+        // Nie udalo sie znalezc nawet jednej kopii
         Solution noSolution;
         noSolution.found = false;
         noSolution.cost = UINT64_MAX;
         return noSolution;
     }
     
-    // Jeśli potrzebujemy tylko jednej kopii, zwracamy
+    // Jesli potrzebujemy tylko jednej kopii, zwracamy
     if (copiesCount == 1) {
         return firstCopy;
     }
@@ -287,13 +311,13 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
     auto extended = firstCopy.extendedGraph;
     auto mappings = Mappings(copiesCount, g1.n);
     
-    // Przepisz pierwszą kopię
+    // Przepisz pierwsza kopie
     mappings.maps[0] = firstCopy.mappings.maps[0];
     uint64_t cost = firstCopy.cost;
     
     const auto order = g1.verticesOrder();
     
-    // Helper: sprawdza czy obraz i-tej kopii różni się od wszystkich poprzednich
+    // Helper: sprawdza czy obraz i-tej kopii rozni się od wszystkich poprzednich
     auto isImageUnique = [&](uint32_t currentCopy) -> bool {
         std::vector<int> currentImage;
         for (int u = 0; u < g1.n; ++u) {
@@ -318,41 +342,36 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         }
         return true;
     };
-    
-    // Dla każdej kolejnej kopii (i = 1, 2, ..., copiesCount-1)
+
     for (uint32_t copyIdx = 1; copyIdx < copiesCount; ++copyIdx) {
         // Skopiuj poprzednią kopię jako punkt startowy
         mappings.maps[copyIdx] = mappings.maps[copyIdx - 1];
         
         bool foundUnique = false;
         
-        // Próbujemy modyfikować wierzchołki od końca do początku
+        // Próbujemy modyfikować wierzchołki od konca do poczatku
         for (int vertexIdx = static_cast<int>(g1.n) - 1; vertexIdx >= 0 && !foundUnique; --vertexIdx) {
             const auto u = order[vertexIdx];
             
-            // Zbierz wszystkie możliwe kandydaty dla tego wierzchołka
-            // (które nie są już użyte w bieżącym mapowaniu)
+            // Zbierz wszystkich mozliwych kandydatow dla tego wierzcholka
+            // (ktore nie sa juz uzyte w biezacym mapowaniu)
             std::set<int> usedVertices;
             for (int j = 0; j < g1.n; ++j) {
                 if (j != static_cast<int>(u) && mappings.maps[copyIdx][j] != Mappings::NO_MAPPING) {
                     usedVertices.insert(mappings.maps[copyIdx][j]);
                 }
             }
-            
-            // Próbuj każdego możliwego v z G2
+
             for (int v = 0; v < g2.n; ++v) {
-                // Pomiń wierzchołki już użyte w tym mapowaniu
+                // Pomin wierzcholki juz uzyte w tym mapowaniu
                 if (usedVertices.count(v)) {
                     continue;
                 }
                 
-                // Zapisz stare mapowanie
                 int oldV = mappings.maps[copyIdx][u];
-                
-                // Ustaw nowe mapowanie
                 mappings.maps[copyIdx][u] = v;
                 
-                // Sprawdź czy to mapowanie jest izomorficzne z G1
+                // Sprawdz czy to mapowanie jest izomorficzne z G1
                 // oraz oblicz dodatkowy koszt dla tego mapowania
                 bool isValidMapping = true;
                 uint64_t additionalCost = 0;
@@ -374,10 +393,10 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                     }
                 }
                 
-                // Sprawdź czy obraz jest unikalny
+                // Sprawdz czy obraz jest unikalny
                 if (isValidMapping && isImageUnique(copyIdx)) {
-                    // Znaleźliśmy unikalne mapowanie!
-                    // Dodaj brakujące krawędzie do extended
+                    // Znalezlismy unikalne mapowanie!
+                    // Dodaj brakujace krawedzie do extended
                     for (int x = 0; x < g1.n; ++x) {
                         int mappedX = mappings.maps[copyIdx][x];
                         if (mappedX == Mappings::NO_MAPPING) continue;
@@ -400,12 +419,12 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                     break;
                 }
                 
-                // Przywróć stare mapowanie jeśli nie znaleziono
+                // Przywroc stare mapowanie jesli nie znaleziono
                 mappings.maps[copyIdx][u] = oldV;
             }
         }
         
-        // Jeśli nie znaleziono unikalnego mapowania dla tej kopii, zwróć błąd
+        // Jesli nie znaleziono unikalnego mapowania dla tej kopii, zwroc blad
         if (!foundUnique) {
             Solution noSolution;
             noSolution.found = false;
@@ -420,7 +439,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
 }
 
 
-Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
+Solution ImproveApproximateExpansion(Solution s, Graph g1, Graph g2) {
     // Jesli wejsciowe rozwiazanie nie zostalo znalezione, zwroc je bez zmian
     if (!s.found) {
         return s;
@@ -607,7 +626,8 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
 uint64_t binomialCoefficient(int n, int k) {
     if (k > n) return 0;
     if (k == 0 || k == n) return 1;
-    if (k > n - k) k = n - k; // C(n,k) = C(n,n-k)
+    // C(n,k) = C(n,n-k)
+    if (k > n - k) k = n - k;
     
     uint64_t result = 1;
     for (int i = 0; i < k; ++i) {
@@ -617,6 +637,7 @@ uint64_t binomialCoefficient(int n, int k) {
     return result;
 }
 
+// Algorytm aproksymacyjny
 Solution approximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copies_count) {
     const auto initialExpansion = initializeApproximateExpansion(g1, g2, copies_count);
     auto result = initialExpansion;
@@ -642,9 +663,9 @@ void recursiveBranching(
 ) {
     // Jesli zmapowalismy juz wszystkie wierzcholki biezacej kopii
     if (vertexIndex >= g1.n) {
-        // WALIDACJA: Sprawdz czy obraz jest unikalny!
         if (!isImageUnique(mappings, copyIndex, g1.n)) {
-            return; // Duplikat obrazu - odrzuc to rozwiazanie
+            // Duplikat obrazu, pomijamy to rozwiazanie
+            return;
         }
         
         if (copyIndex == k - 1) {
@@ -668,9 +689,9 @@ void recursiveBranching(
         return;
     }
 
-    const uint32_t u = order[vertexIndex];  // Biezacy wierzcholek G1 do zmapowania
-    
-    // Wybierz kandydatow zgodnie z heurystyka z sekcji 3.3
+    // Biezacy wierzcholek G1 do zmapowania
+    const uint32_t u = order[vertexIndex];
+
     const auto candidates = chooseCandidates(u, g1, g2, gExtended, mappings.maps[copyIndex]);
 
     for (const auto& candidate : candidates) {
@@ -691,7 +712,6 @@ void recursiveBranching(
             }
         }
         
-        // POPRAWKA: Wczesniejsze sprawdzenie czy tworzymy duplikat obrazu
         // Budujemy tymczasowy obraz biezacego mapowania z nowym v
         if (copyIndex > 0 && vertexIndex == g1.n - 1) {
             std::vector<int> currentImage;
@@ -720,7 +740,8 @@ void recursiveBranching(
                 }
             }
             if (isDuplicate) {
-                continue; // Pomin ten kandydat - tworzy duplikat
+                // Pomijamy duplikat
+                continue;
             }
         }
 
@@ -736,7 +757,6 @@ void recursiveBranching(
             continue;
         }
 
-        // Przypisanie
         mappings.maps[copyIndex][u] = v;
         const uint64_t newCost = currentCost + deltaCost;
 
@@ -821,7 +841,7 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k, const boo
     return bestSolution;
 }
 
-// Wczytywanie grafow z pliku z bulletproof walidacją
+// Wczytywanie grafow z pliku
 bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& k) {
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -839,8 +859,8 @@ bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& 
         std::cerr << "ERROR: Invalid n1=" << n1 << " (must be positive)" << std::endl;
         return false;
     }
-
     g1 = Graph(n1);
+
     // Wczytaj macierz sasiedztwa G1
     for (int i = 0; i < n1; ++i) {
         for (int j = 0; j < n1; ++j) {
@@ -869,8 +889,8 @@ bool loadGraphsFromFile(const std::string& filename, Graph& g1, Graph& g2, int& 
         std::cerr << "ERROR: n2=" << n2 << " < n1=" << n1 << " (G2 must have at least as many vertices as G1)" << std::endl;
         return false;
     }
-
     g2 = Graph(n2);
+
     // Wczytaj macierz sasiedztwa G2
     for (int i = 0; i < n2; ++i) {
         for (int j = 0; j < n2; ++j) {
@@ -911,7 +931,7 @@ void printGraph(ostream& o, const Graph& g, const std::string& name) {
     o << std::endl;
 }
 
-// Wypisz tylko macierz (bez ozdobników)
+// Wypisz tylko macierz (bez ozdobnikow)
 void printMatrixOnly(ostream& o, const Graph& g) {
     for (int i = 0; i < g.n; ++i) {
         for (int j = 0; j < g.n; ++j) {
@@ -922,7 +942,7 @@ void printMatrixOnly(ostream& o, const Graph& g) {
     }
 }
 
-// Wypisz rozwiazanie - verbose mode
+// Wypisz rozwiazanie w trybie verbose
 void printSolutionVerbose(ostream& o, const Solution& sol, const Graph& g1, const Graph& g2, const std::string& algName, int n1, int n2, int k) {
     o << "=== Results from " << algName << " algorithm ===" << std::endl;
     if (!sol.found || sol.cost == UINT64_MAX) {
@@ -954,7 +974,7 @@ void printSolutionVerbose(ostream& o, const Solution& sol, const Graph& g1, cons
     printGraph(o, sol.extendedGraph, "G'2");
 }
 
-// Wypisz rozwiazanie - simple mode (tylko wynik)
+// Wypisz rozwiazanie w trybie simple (tylko wynik)
 void printSolutionSimple(ostream& o, const Solution& sol) {
     if (!sol.found || sol.cost == UINT64_MAX) {
         std::cerr << "ERROR: No solution found" << std::endl;
@@ -1029,7 +1049,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // WALIDACJA WEJSCIA
+    // Walidacja wejscia
     const uint64_t maxMappings = binomialCoefficient(g2.n, g1.n);
     if (static_cast<uint64_t>(k) > maxMappings) {
         std::cerr << "ERROR: Impossible to find " << k << " distinct embeddings." << std::endl;
@@ -1066,7 +1086,7 @@ int main(int argc, char* argv[]) {
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
-    // Sprawdź czy znaleziono rozwiązanie
+    // Sprawdz czy znaleziono rozwiazanie
     if (!solution.found || solution.cost == UINT64_MAX) {
         std::cerr << "ERROR: No solution found" << std::endl;
         if (verbose) {
