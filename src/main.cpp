@@ -35,8 +35,8 @@ struct Graph {
 
     [[nodiscard]] uint64_t totalEdges() const {
         uint64_t count = 0;
-        for(const auto& row : matrix) {
-            for(const int val : row) count += val;
+        for (const auto& row : matrix) {
+            for (const int val : row) count += val;
         }
         return count;
     }
@@ -118,7 +118,7 @@ struct Solution {
 
 // Oblicza koszt przypisania u -> v
 // Zgodnie z sekcja 3.5 dokumentacji: ObliczKoszt
-int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended, const std::vector<int> &mapping) {
+int countCost(const int u, const int v, const Graph& G1, const Graph& G2Extended, const std::vector<int>& mapping) {
     int costIncrease = 0;
     for (size_t i = 0; i < mapping.size(); i++) {
         if (mapping[i] == Mappings::NO_MAPPING) {
@@ -137,7 +137,7 @@ int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended
             costIncrease += diff;
         }
     }
-    
+
     // Dodaj koszt petli (self-loop)
     const int reqSelfLoop = G1.matrix[u][u];
     const int currSelfLoop = G2Extended.matrix[v][v];
@@ -153,7 +153,7 @@ struct Candidate {
     uint32_t deltaCost;
     uint32_t deltaExist;
 
-    explicit Candidate(const uint32_t v, const uint32_t deltaCost, const uint32_t deltaExist): v(v), deltaCost(deltaCost), deltaExist(deltaExist) {}
+    explicit Candidate(const uint32_t v, const uint32_t deltaCost, const uint32_t deltaExist) : v(v), deltaCost(deltaCost), deltaExist(deltaExist) {}
     Candidate(Candidate&&) = default;
     Candidate& operator=(Candidate&&) = default;
 };
@@ -185,7 +185,7 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
     return covered;
 }
 
-Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, const Graph &extended, const std::vector<int> &mapping) {
+Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph& g2, const Graph& extended, const std::vector<int>& mapping) {
     auto candidates = std::vector<Candidate>();
 
     // Znajdz wierzcholki juz uzyte w biezacym mapowaniu
@@ -201,7 +201,7 @@ Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, 
         if (usedVertices.count(v)) {
             continue;
         }
-        
+
         const auto deltaCost = countCost(u, v, g1, extended, mapping);
         const auto deltaExist = computeDeltaExist(u, v, g1, extended, mapping);
 
@@ -212,7 +212,7 @@ Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, 
     // 1. Maksymalizacja zgodnosci (deltaExist - wiecej lepiej, wiec malejaco)
     // 2. Minimalizacja przyrostu kosztu (deltaCost - mniej lepiej, wiec rosnaco)
     // 3. Maksymalny stopien wierzcholka (wiecej lepiej, wiec malejaco)
-    std::sort(candidates.begin(), candidates.end(), [&extended](const Candidate &a, const Candidate &b) {
+    std::sort(candidates.begin(), candidates.end(), [&extended](const Candidate& a, const Candidate& b) {
         if (a.deltaExist != b.deltaExist) {
             return a.deltaExist > b.deltaExist;
         }
@@ -220,12 +220,12 @@ Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, 
             return a.deltaCost < b.deltaCost;
         }
         return extended.degree(a.v) > extended.degree(b.v);
-    });
+        });
     return candidates;
 }
 
 // Aktualizuje graf `extended` dodajac brakujace krawedzie po przypisaniu mapowania u -> v.
-void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph &extended, const std::vector<int> &mapping) {
+void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph& extended, const std::vector<int>& mapping) {
     for (int i = 0; i < g1.n; ++i) {
         const auto mapped = mapping[i];
         // Pomijamy dla niezmappowanych wierzcholkow
@@ -246,7 +246,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
             currIn = reqIn;
         }
     }
-    
+
     // Dodaj obsluge petli (self-loop)
     const int reqSelfLoop = g1.matrix[u][u];
     int& currSelfLoop = extended.matrix[v][v];
@@ -259,17 +259,17 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
 Solution exactAlgorithm(const Graph& g1, const Graph& g2, int k, bool oneBranch);
 
 // Inicjalizacja rozszerzenia aproksymacyjnego
-Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const uint32_t copiesCount) {
+Solution initializeApproximateExpansion(const Graph& g1, const Graph& g2, const uint32_t copiesCount) {
     if (copiesCount == 0) {
         Solution noSolution;
         noSolution.found = false;
         noSolution.cost = UINT64_MAX;
         return noSolution;
     }
-    
+
     // Użyj algorytmu dokładnego dla k=1 aby znaleźć pierwszą kopię
     Solution firstCopy = exactAlgorithm(g1, g2, 1, true);
-    
+
     if (!firstCopy.found || firstCopy.cost == UINT64_MAX) {
         // Nie udało się znaleźć nawet jednej kopii
         Solution noSolution;
@@ -277,22 +277,22 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         noSolution.cost = UINT64_MAX;
         return noSolution;
     }
-    
+
     // Jeśli potrzebujemy tylko jednej kopii, zwracamy
     if (copiesCount == 1) {
         return firstCopy;
     }
-    
+
     // Dla kolejnych kopii (i >= 1) modyfikujemy mapowanie
     auto extended = firstCopy.extendedGraph;
     auto mappings = Mappings(copiesCount, g1.n);
-    
+
     // Przepisz pierwszą kopię
     mappings.maps[0] = firstCopy.mappings.maps[0];
     uint64_t cost = firstCopy.cost;
-    
+
     const auto order = g1.verticesOrder();
-    
+
     // Helper: sprawdza czy obraz i-tej kopii różni się od wszystkich poprzednich
     auto isImageUnique = [&](uint32_t currentCopy) -> bool {
         std::vector<int> currentImage;
@@ -302,7 +302,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
             }
         }
         std::sort(currentImage.begin(), currentImage.end());
-        
+
         for (uint32_t prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
             std::vector<int> prevImage;
             for (int u = 0; u < g1.n; ++u) {
@@ -311,25 +311,25 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                 }
             }
             std::sort(prevImage.begin(), prevImage.end());
-            
+
             if (currentImage == prevImage) {
                 return false;
             }
         }
         return true;
-    };
-    
+        };
+
     // Dla każdej kolejnej kopii (i = 1, 2, ..., copiesCount-1)
     for (uint32_t copyIdx = 1; copyIdx < copiesCount; ++copyIdx) {
         // Skopiuj poprzednią kopię jako punkt startowy
         mappings.maps[copyIdx] = mappings.maps[copyIdx - 1];
-        
+
         bool foundUnique = false;
-        
+
         // Próbujemy modyfikować wierzchołki od końca do początku
         for (int vertexIdx = static_cast<int>(g1.n) - 1; vertexIdx >= 0 && !foundUnique; --vertexIdx) {
             const auto u = order[vertexIdx];
-            
+
             // Zbierz wszystkie możliwe kandydaty dla tego wierzchołka
             // (które nie są już użyte w bieżącym mapowaniu)
             std::set<int> usedVertices;
@@ -338,42 +338,42 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                     usedVertices.insert(mappings.maps[copyIdx][j]);
                 }
             }
-            
+
             // Próbuj każdego możliwego v z G2
             for (int v = 0; v < g2.n; ++v) {
                 // Pomiń wierzchołki już użyte w tym mapowaniu
                 if (usedVertices.count(v)) {
                     continue;
                 }
-                
+
                 // Zapisz stare mapowanie
                 int oldV = mappings.maps[copyIdx][u];
-                
+
                 // Ustaw nowe mapowanie
                 mappings.maps[copyIdx][u] = v;
-                
+
                 // Sprawdź czy to mapowanie jest izomorficzne z G1
                 // oraz oblicz dodatkowy koszt dla tego mapowania
                 bool isValidMapping = true;
                 uint64_t additionalCost = 0;
-                
+
                 for (int x = 0; x < g1.n; ++x) {
                     int mappedX = mappings.maps[copyIdx][x];
                     if (mappedX == Mappings::NO_MAPPING) continue;
-                    
+
                     for (int y = 0; y < g1.n; ++y) {
                         int mappedY = mappings.maps[copyIdx][y];
                         if (mappedY == Mappings::NO_MAPPING) continue;
-                        
+
                         int reqEdges = g1.matrix[x][y];
                         int haveEdges = extended.matrix[mappedX][mappedY];
-                        
+
                         if (reqEdges > haveEdges) {
                             additionalCost += (reqEdges - haveEdges);
                         }
                     }
                 }
-                
+
                 // Sprawdź czy obraz jest unikalny
                 if (isValidMapping && isImageUnique(copyIdx)) {
                     // Znaleźliśmy unikalne mapowanie!
@@ -381,30 +381,30 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                     for (int x = 0; x < g1.n; ++x) {
                         int mappedX = mappings.maps[copyIdx][x];
                         if (mappedX == Mappings::NO_MAPPING) continue;
-                        
+
                         for (int y = 0; y < g1.n; ++y) {
                             int mappedY = mappings.maps[copyIdx][y];
                             if (mappedY == Mappings::NO_MAPPING) continue;
-                            
+
                             int reqEdges = g1.matrix[x][y];
                             int& haveEdges = extended.matrix[mappedX][mappedY];
-                            
+
                             if (reqEdges > haveEdges) {
                                 haveEdges = reqEdges;
                             }
                         }
                     }
-                    
+
                     cost += additionalCost;
                     foundUnique = true;
                     break;
                 }
-                
+
                 // Przywróć stare mapowanie jeśli nie znaleziono
                 mappings.maps[copyIdx][u] = oldV;
             }
         }
-        
+
         // Jeśli nie znaleziono unikalnego mapowania dla tej kopii, zwróć błąd
         if (!foundUnique) {
             Solution noSolution;
@@ -413,134 +413,149 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
             return noSolution;
         }
     }
-    
+
     auto solution = Solution(std::move(extended), std::move(mappings), cost);
     solution.found = true;
     return solution;
 }
 
+// Funkcja usuwa krawędzie, które zostały dodane do wierzchołków v1 i v2 w rozszerzonym grafie. Zwraca koszt tej operacji.
+int deleteEdgesAddedToVertices(vector<vector<int>>& modifiedExtendedGraph, int v1, int v2, Graph& g2) {
+    int delta = 0;
+    for (int k = 0; k < modifiedExtendedGraph.size(); k++) {
+        delta -= (modifiedExtendedGraph[v2][k] - g2.matrix[v2][k]);
+        modifiedExtendedGraph[v2][k] = g2.matrix[v2][k];
+        delta -= (modifiedExtendedGraph[v1][k] - g2.matrix[v1][k]);
+        modifiedExtendedGraph[v1][k] = g2.matrix[v1][k];
+        delta -= (modifiedExtendedGraph[k][v2] - g2.matrix[k][v2]);
+        modifiedExtendedGraph[k][v2] = g2.matrix[k][v2];
+        delta -= (modifiedExtendedGraph[k][v1] - g2.matrix[k][v1]);
+        modifiedExtendedGraph[k][v1] = g2.matrix[k][v1];
+    }
+    return delta;
+}
 
-Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, Graph g2 /* bigger graph */) {
+// Funkcja dodaje krawędzie do rozszerzonego grafu, tak by wszystkie mapowania na wierzchołek v były poprawne, Zwraca koszt operacji
+int addEdgesForGivenVertex(Mappings& mappings, Graph& g1, vector<vector<int>>& modifiedExtendedGraph, int v) {
+    int delta = 0;
+    for (int copynr = 0; copynr < mappings.k; copynr++) {
+
+        // sprawdz czy v jest czyims mapowaniem w kopii copynr
+        auto vIterator = std::find(mappings.maps[copynr].begin(), mappings.maps[copynr].end(), v);
+        if (vIterator != mappings.maps[copynr].end()) {
+            int vertexMappedOnV = distance(mappings.maps[copynr].begin(), vIterator);
+
+            // dla każdego potencjalnego sąsiada v
+            for (int n = 0; n < g1.n; n++) {
+
+                // sprawdzenie czy z mapowania n wychodzi odpowiednia ilosc wierzchołkow do v i ewentualne dodanie brakujacych krawedzi
+                int mappingOfN = mappings.maps[copynr][n];
+                int reqIn = g1.matrix[n][vertexMappedOnV];
+                int currIn = modifiedExtendedGraph[mappingOfN][v];
+                if (reqIn > currIn) {
+                    modifiedExtendedGraph[mappingOfN][v] = reqIn;
+                    delta += (reqIn - currIn);
+                }
+
+                // sprawdzenie czy z v wychodzi odpowiednia ilosc wierzchołkow do mapowania n i ewentualne dodanie brakujacych krawedzi
+                int reqOut = g1.matrix[vertexMappedOnV][n];
+                int currOut = modifiedExtendedGraph[v][mappingOfN];
+                if (reqOut > currOut) {
+                    modifiedExtendedGraph[v][mappings.maps[copynr][n]] = reqOut;
+                    delta += (reqOut - currOut);
+                }
+            }
+        }
+    }
+
+    return delta;
+}
+
+struct BetterSolution {
+    bool ifFound;
+    int copyId;
+    vector<int> newMapping;
+    vector<vector<int>> newAdjacencyMatrix;
+};
+
+Solution ImproveApproximateExpansion(Solution s, Graph g1, Graph g2) {
+
     // Jesli wejsciowe rozwiazanie nie zostalo znalezione, zwroc je bez zmian
     if (!s.found) {
         return s;
     }
-    
-    bool improved = true; // czy znaleziono lepsze rozwiazanie
-    int bestDelta;  // o ile lepsze rozwiazanie znalezion (zakres (-inf, 0))
-    int copyToModify; // kopia, w ktora nalezy dokonac zmian przy najlepszym znalezionym rozwiazaniu
-    vector<int> newBestMapping; // najoptymalniejsze znalezione mapowanie
-    vector<vector<int>> matrixForNewBestMapping; // Macierz sasiedztwa grafu G2' po zastosowaniu mapowania newBestMapping
-    while (improved) {
-        improved = false; 
-        bestDelta = 0;
-        copyToModify = -1;
-        for (int i = 0; i < s.mappings.k; i++) { // wybor kopii, w ktorej szukamy lepszego mapowania
 
-            for (int u = 0; u < g1.n; u++) { // wierzcholek ktory dostaje mapowanie nowe mapowanie
-                for (int v = 0; v < g2.n; v++) { // v - nowe mapowanie wierzcholka u
-                    vector<vector<int>> modifiedMatrix = s.extendedGraph.matrix; // kopia macierzy sasiedztwa grafu G2 - do modyfikacji
-                    vector<int> currentMapping = s.mappings.maps[i]; // aktualne mapowanie dla kopii i(zapisane, by na koncu moc cofnac zmiany)
-                    auto it = std::find(s.mappings.maps[i].begin(), s.mappings.maps[i].end(), v);
+    bool improved = true;
+    int bestDelta;
+    BetterSolution betterSolution;
+    while (improved) {
+        improved = false;
+        bestDelta = 0;
+        betterSolution.ifFound = false;
+
+        // wybor kopii, w ktorej szukamy lepszego mapowania
+        for (int i = 0; i < s.mappings.k; i++) {
+            // wybor wierzcholka ktory dostanie nowe mapowanie
+            for (int u = 0; u < g1.n; u++) {
+                // wybor nowego mapowania dla wierzchołka u
+                for (int v = 0; v < g2.n; v++) {
+
+                    // Kopia rozszerzonego grafu, na której będą przeporowadzane modyfikacje
+                    vector<vector<int>> modifiedExtendedGraph = s.extendedGraph.matrix;
+
+                    vector<int> oldMapping = s.mappings.maps[i];
                     int oldUMapping;
-                    int delta = 0;  // inicjalizacja na 0
+                    int delta;
+
+                    // Szukamy czy jakis wierzcholek w aktualnej kopii jest juz zmapowany na v
+                    auto it = std::find(s.mappings.maps[i].begin(), s.mappings.maps[i].end(), v);
+
+                    // Jezeli jakis wierzcholek w jest juz zmapowany na v to zmieniamy mapowanie
+                    // tak, ze u jest mapowany na v a w jest mapowany na stare mapowanie u
                     if (it != s.mappings.maps[i].end()) { // jezeli jakis wierzcholek z G1 juz jest mapowany n v
-                        int vertexMappedToV = distance(s.mappings.maps[i].begin(), it); // wierzcholek G1, ktory aktualnie jest mapowany na v
-                        oldUMapping = s.mappings.maps[i][u]; // stare mapowanie u
+                        int vertexMappedToV = distance(s.mappings.maps[i].begin(), it);
+                        oldUMapping = s.mappings.maps[i][u];
                         swap(s.mappings.maps[i][vertexMappedToV], s.mappings.maps[i][u]);
                     }
-                    else { // jezeli zaden wierzcholek z G1 nie jest mapowany na v
-                        oldUMapping = s.mappings.maps[i][u]; 
+                    // Jezeli zaden wierzcholek nie jest mapowany na v to ustawiamy mapowanie u na v
+                    else {
+                        oldUMapping = s.mappings.maps[i][u];
                         s.mappings.maps[i][u] = v;
                     }
-                    for (int k = 0; k < s.extendedGraph.n; k++) { // usuwanie dodanych wczesniej krawedzi do G2 wchodzacych/wychodzacych do v i oldUMapping
-                        delta -= (modifiedMatrix[oldUMapping][k] - g2.matrix[oldUMapping][k]);
-                        modifiedMatrix[oldUMapping][k] = g2.matrix[oldUMapping][k];
-                        delta -= (modifiedMatrix[v][k] - g2.matrix[v][k]);
-                        modifiedMatrix[v][k] = g2.matrix[v][k];
-                        delta -= (modifiedMatrix[k][oldUMapping] - g2.matrix[k][oldUMapping]);
-                        modifiedMatrix[k][oldUMapping] = g2.matrix[k][oldUMapping];
-                        delta -= (modifiedMatrix[k][v] - g2.matrix[k][v]);
-                        modifiedMatrix[k][v] = g2.matrix[k][v];
-                    }
-                    // zwiekszamy krawedzie ze wzgledu na mapowanie na v
-                    for (int copynr = 0; copynr < s.mappings.k; copynr++) { 
-                        auto vIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), v); // sprawdz czy v jest czyims mapowaniem w kopii copynr
-                        if (vIterator != s.mappings.maps[copynr].end()) {  // POPRAWKA: vIterator zamiast it!
-                            int vertexMappedOnV = distance(s.mappings.maps[copynr].begin(), vIterator); // POPRAWKA: copynr i vIterator!
-                            for (int n = 0; n < g1.n; n++) { // dla kazdego wierzcholka z mniejszego grafu
-                                int mappingOfN = s.mappings.maps[copynr][n]; // mapowanie wierzcholka n z g1 dla kopii copynr na wierzcholek g2
-                                int reqIn = g1.matrix[n][vertexMappedOnV]; // sprawdzenie ile wychodzi krawdzi z n do wierzcholka ktory jest mapowany na v w kopii copynr
-                                int currIn = modifiedMatrix[mappingOfN][v]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
-                                if (reqIn > currIn) {
-                                    modifiedMatrix[mappingOfN][v] = reqIn;
-                                    delta += (reqIn - currIn);
-                                }
-                                int reqOut = g1.matrix[vertexMappedOnV][n]; // sprawdzenie ile wychodzi krawedzi z wierzcholka mapowanego na v do n
-                                int currOut = modifiedMatrix[v][mappingOfN]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
-                                if (reqOut > currOut) {
-                                    modifiedMatrix[v][s.mappings.maps[copynr][n]] = reqOut;
-                                    delta += (reqOut - currOut);
-                                }
-                            }
-                        }
-                    }
 
-                    // zwiekszamy krawedzie ze wzgledu na to ze mapowania na oldUMapping
-                    for (int copynr = 0; copynr < s.mappings.k; copynr++) {
-                        auto oldUMappingIterator = std::find(s.mappings.maps[copynr].begin(), s.mappings.maps[copynr].end(), oldUMapping); // sprawdz czy stare mapowanie u jest czyims mapowaniem w kopii copynr
-                        if (oldUMappingIterator != s.mappings.maps[copynr].end()) {
-                            int vertexMappedToOldUMapping = distance(s.mappings.maps[copynr].begin(), oldUMappingIterator); // POPRAWKA: copynr i oldUMappingIterator!
-                            for (int n = 0; n < g1.n; n++) {
-                                int mappingOfN = s.mappings.maps[copynr][n]; // mapowanie wierzcholka n z g1 dla kopii copynr na wierzcholek g2
-                                int reqIn = g1.matrix[n][vertexMappedToOldUMapping]; // sprawdzenie ile wychodzi krawdzi z n do wierzcholka ktory jest mapowany na stare mapowanie u w kopii copynr
-                                int currIn = modifiedMatrix[mappingOfN][oldUMapping]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
-                                if (reqIn > currIn) {
-                                    modifiedMatrix[mappingOfN][oldUMapping] = reqIn;
-                                    delta += (reqIn - currIn);
-                                }
-                                int reqOut = g1.matrix[vertexMappedToOldUMapping][n]; // sprawdzenie ile wychodiz krawedzi z wierzcholka mapowanego na stare mapowanie u do n
-                                int currOut = modifiedMatrix[oldUMapping][mappingOfN]; // ilosc krawedzi pomiedzy zmapowanymi wierzcholkami w grafie
-                                if (reqOut > currOut) {
-                                    modifiedMatrix[oldUMapping][s.mappings.maps[copynr][n]] = reqOut;
-                                    delta += (reqOut - currOut);
-                                }
-                            }
-                        }
-                    }
+                    // Ustawiamy liczności wszystkich krawędzie, wchodzących i wychodzących do v i starego mapowania u
+                    // na wartości z niezmodyfikowanego G2, poniewaz, przez zmiane mapowania, tylko one mogly zmienic
+                    // swoja licznosc 
+                    delta = deleteEdgesAddedToVertices(modifiedExtendedGraph, v, oldUMapping, g2);
+
+                    // Dodajemy krawedzie tak, by wszystkie mapowania we wszystkich kopiach na wierzchołek v działały
+                    delta += addEdgesForGivenVertex(s.mappings, g1, modifiedExtendedGraph, v);
+
+                    // Dodajemy krawedzie tak, by wszystkie mapowania we wszystkich kopiach na stare mapowanie u działały
+                    delta += addEdgesForGivenVertex(s.mappings, g1, modifiedExtendedGraph, oldUMapping);
 
                     vector<int> newMapping = s.mappings.maps[i];
-                    // Odfiltruj NO_MAPPING przed utworzeniem zbioru!
-                    set<int> vset;
-                    for (int val : s.mappings.maps[i]) {
-                        if (val != Mappings::NO_MAPPING) {
-                            vset.insert(val);
-                        }
-                    }
-                    s.mappings.maps[i] = currentMapping;
+
+                    // Potencjalne nowe mapowanie zamienione na set
+                    set<int> vset(s.mappings.maps[i].begin(), s.mappings.maps[i].end());
+                    s.mappings.maps[i] = oldMapping;
 
                     if (delta < bestDelta) {
                         // Sprawdz czy to byl swap (czy v bylo juz w mapowaniu)
                         bool isSwap = false;
-                        for (int val : currentMapping) {
+                        for (int val : oldMapping) {
                             if (val == v) {
                                 isSwap = true;
                                 break;
                             }
                         }
-                        // sprawdzenie czy zadne inne mapowanie nie zawiera dokladnie tych samych wiezrcholkow
+                        // sprawdzenie czy zadne inne mapowanie nie zawiera dokladnie tych samych wierzcholkow
                         bool isMappingValid = true;
 
                         // Jesli to nie byl swap (czyli zmienil sie zbior wartosci), to sprawdzamy unikalnosc.
-                        // Jesli to byl swap, zachowujemy stary zbior (wiec nie psujemy bardziej niz bylo)
                         if (!isSwap) {
                             for (const auto& mp : s.mappings.maps) {
-                                std::set<int> mpSet;
-                                for (int val : mp) {
-                                    if (val != Mappings::NO_MAPPING) {
-                                        mpSet.insert(val);
-                                    }
-                                }
+                                std::set<int> mpSet(mp.begin(), mp.end());
                                 if (mpSet == vset) {
                                     isMappingValid = false;
                                     break;
@@ -548,19 +563,24 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
                             }
                         }
 
+                        // Jeżeli aktualna zmiana jest korzystniejsza niż najlepsza znaleziona i mapowanie jest prawidłowe
+                        // To ustawiamy nowe najlepsze znalezione mapowanie
                         if (isMappingValid) {
                             bestDelta = delta;
-                            copyToModify = i;
-                            newBestMapping = newMapping;
-                            matrixForNewBestMapping = modifiedMatrix;
+                            betterSolution.ifFound = true;
+                            betterSolution.copyId = i;
+                            betterSolution.newAdjacencyMatrix = modifiedExtendedGraph;
+                            betterSolution.newMapping = newMapping;
                         }
                     }
                 }
             }
         }
-        if (copyToModify != -1) {
-            s.mappings.maps[copyToModify] = newBestMapping;
-            s.extendedGraph.matrix = matrixForNewBestMapping;
+
+        // Jeżeli znaleziono lepsze mapowanie to podmieniamy je w rozwiązaniu i kontynuujemy algorytm
+        if (betterSolution.ifFound) {
+            s.mappings.maps[betterSolution.copyId] = betterSolution.newMapping;
+            s.extendedGraph.matrix = betterSolution.newAdjacencyMatrix;
             s.cost += bestDelta;
             improved = true;
         }
@@ -573,7 +593,7 @@ Solution ImproveApproximateExpansion(Solution s, Graph g1 /* smaller graph */, G
 // Funkcja pomocnicza: sprawdza czy obraz mapowania jest rozny od wszystkich poprzednich kopii
 bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
     if (currentCopy == 0) return true; // Pierwsza kopia zawsze unikalna
-    
+
     // Zbierz obraz biezacej kopii (posortowany)
     std::vector<int> currentImage;
     for (int i = 0; i < n; ++i) {
@@ -582,7 +602,7 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
         }
     }
     std::sort(currentImage.begin(), currentImage.end());
-    
+
     // Porownaj z obrazami wszystkich poprzednich kopii
     for (int prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
         std::vector<int> prevImage;
@@ -592,13 +612,13 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
             }
         }
         std::sort(prevImage.begin(), prevImage.end());
-        
+
         // Jesli obrazy identyczne - BlaD!
         if (currentImage == prevImage) {
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -608,7 +628,7 @@ uint64_t binomialCoefficient(int n, int k) {
     if (k > n) return 0;
     if (k == 0 || k == n) return 1;
     if (k > n - k) k = n - k; // C(n,k) = C(n,n-k)
-    
+
     uint64_t result = 1;
     for (int i = 0; i < k; ++i) {
         result *= (n - i);
@@ -646,7 +666,7 @@ void recursiveBranching(
         if (!isImageUnique(mappings, copyIndex, g1.n)) {
             return; // Duplikat obrazu - odrzuc to rozwiazanie
         }
-        
+
         if (copyIndex == k - 1) {
             // Znalezlismy kompletne mapowanie wszystkich k kopii
             if (currentCost < bestSolution.cost) {
@@ -655,10 +675,11 @@ void recursiveBranching(
                 bestSolution.mappings = mappings;
                 bestSolution.found = true;
             }
-        } else {
+        }
+        else {
             // Przechodzimy do kolejnej kopii
-            recursiveBranching(copyIndex + 1, 0, order, g1, g2, gExtended, 
-                             mappings, currentCost, true, bestSolution, k, oneBranch);
+            recursiveBranching(copyIndex + 1, 0, order, g1, g2, gExtended,
+                mappings, currentCost, true, bestSolution, k, oneBranch);
         }
         return;
     }
@@ -669,7 +690,7 @@ void recursiveBranching(
     }
 
     const uint32_t u = order[vertexIndex];  // Biezacy wierzcholek G1 do zmapowania
-    
+
     // Wybierz kandydatow zgodnie z heurystyka z sekcji 3.3
     const auto candidates = chooseCandidates(u, g1, g2, gExtended, mappings.maps[copyIndex]);
 
@@ -690,7 +711,7 @@ void recursiveBranching(
                 continue;
             }
         }
-        
+
         // POPRAWKA: Wczesniejsze sprawdzenie czy tworzymy duplikat obrazu
         // Budujemy tymczasowy obraz biezacego mapowania z nowym v
         if (copyIndex > 0 && vertexIndex == g1.n - 1) {
@@ -698,12 +719,13 @@ void recursiveBranching(
             for (int idx = 0; idx < g1.n; ++idx) {
                 if (idx == static_cast<int>(u)) {
                     currentImage.push_back(v);
-                } else if (mappings.maps[copyIndex][idx] != Mappings::NO_MAPPING) {
+                }
+                else if (mappings.maps[copyIndex][idx] != Mappings::NO_MAPPING) {
                     currentImage.push_back(mappings.maps[copyIndex][idx]);
                 }
             }
             std::sort(currentImage.begin(), currentImage.end());
-            
+
             // Sprawdz czy ten obraz juz istnieje w poprzednich kopiach
             bool isDuplicate = false;
             for (int prevCopy = 0; prevCopy < copyIndex; ++prevCopy) {
@@ -747,8 +769,8 @@ void recursiveBranching(
         }
 
         // Zapisz stan grafu przed modyfikacja (do cofniecia)
-        std::vector<std::pair<std::pair<int,int>, int>> edgeChanges;
-        
+        std::vector<std::pair<std::pair<int, int>, int>> edgeChanges;
+
         // Aktualizuj G'_2 o brakujace krawedzie
         for (uint32_t i = 0; i < g1.n; ++i) {
             const int mappedI = mappings.maps[copyIndex][i];
@@ -758,35 +780,35 @@ void recursiveBranching(
 
             const int reqOut = g1.matrix[u][i];
             const int reqIn = g1.matrix[i][u];
-            
+
             int& currOut = gExtended.matrix[v][mappedI];
             int& currIn = gExtended.matrix[mappedI][v];
 
             if (currOut < reqOut) {
-                edgeChanges.push_back({{v, mappedI}, currOut});
+                edgeChanges.push_back({ {v, mappedI}, currOut });
                 currOut = reqOut;
             }
             if (currIn < reqIn) {
-                edgeChanges.push_back({{mappedI, v}, currIn});
+                edgeChanges.push_back({ {mappedI, v}, currIn });
                 currIn = reqIn;
             }
         }
-        
+
         // Dodaj obsluge petli (self-loop) dla wierzcholka u
         const int reqSelfLoop = g1.matrix[u][u];
         int& currSelfLoop = gExtended.matrix[v][v];
         if (currSelfLoop < reqSelfLoop) {
-            edgeChanges.push_back({{v, v}, currSelfLoop});
+            edgeChanges.push_back({ {v, v}, currSelfLoop });
             currSelfLoop = reqSelfLoop;
         }
 
         // Sprawdz czy prefix jest rowny
-        const bool newPrefixEqual = copyIndex > 0 && prefixEqual && 
-                                   (static_cast<int>(v) == mappings.maps[copyIndex - 1][u]);
+        const bool newPrefixEqual = copyIndex > 0 && prefixEqual &&
+            (static_cast<int>(v) == mappings.maps[copyIndex - 1][u]);
 
         // Wywolanie rekurencyjne
         recursiveBranching(copyIndex, vertexIndex + 1, order, g1, g2, gExtended,
-                         mappings, newCost, newPrefixEqual, bestSolution, k, oneBranch);
+            mappings, newCost, newPrefixEqual, bestSolution, k, oneBranch);
 
         if (oneBranch && bestSolution.found)
             return;
@@ -815,8 +837,8 @@ Solution exactAlgorithm(const Graph& g1, const Graph& g2, const int k, const boo
     bestSolution.found = false;
 
     // Wywolaj rekurencje
-    recursiveBranching(0, 0, order, g1, g2, gExtended, mappings, 
-                      0, false, bestSolution, k, oneBranch);
+    recursiveBranching(0, 0, order, g1, g2, gExtended, mappings,
+        0, false, bestSolution, k, oneBranch);
 
     return bestSolution;
 }
@@ -932,7 +954,8 @@ void printSolutionVerbose(ostream& o, const Solution& sol, const Graph& g1, cons
             std::cerr << "REASON: k > C(n2,n1) - mathematically impossible." << std::endl;
             std::cerr << "  Requested k=" << k << " different " << n1 << "-element subsets" << std::endl;
             std::cerr << "  from " << n2 << "-element set, but C(" << n2 << "," << n1 << ")=" << maxMappings << std::endl;
-        } else {
+        }
+        else {
             std::cerr << "REASON: Graph structure does not allow k distinct isomorphic embeddings." << std::endl;
         }
         return;
@@ -942,7 +965,7 @@ void printSolutionVerbose(ostream& o, const Solution& sol, const Graph& g1, cons
 
     o << "\nMappings:" << std::endl;
     for (int i = 0; i < sol.mappings.k; ++i) {
-        o << "  Copy " << (i+1) << ": ";
+        o << "  Copy " << (i + 1) << ": ";
         for (int j = 0; j < sol.mappings.n; ++j) {
             if (j > 0) o << ", ";
             o << j << "->" << sol.mappings.maps[i][j];
@@ -960,7 +983,7 @@ void printSolutionSimple(ostream& o, const Solution& sol) {
         std::cerr << "ERROR: No solution found" << std::endl;
         return;
     }
-    
+
     // Format: n, macierz, koszt
     o << sol.extendedGraph.n << std::endl;
     printMatrixOnly(o, sol.extendedGraph);
@@ -1001,15 +1024,19 @@ int main(int argc, char* argv[]) {
         std::string arg = argv[i];
         if (arg == "-a" || arg == "--approx") {
             useApprox = true;
-        } else if (arg == "-r" || arg == "--raw") {
+        }
+        else if (arg == "-r" || arg == "--raw") {
             verbose = false;
-        } else if (arg[0] == '-') {
+        }
+        else if (arg[0] == '-') {
             std::cerr << "ERROR: Unknown option: " << arg << std::endl;
             printUsage(argv[0]);
             return 1;
-        } else if (filename.empty()) {
+        }
+        else if (filename.empty()) {
             filename = arg;
-        } else {
+        }
+        else {
             std::cerr << "ERROR: Multiple input files specified" << std::endl;
             return 1;
         }
@@ -1051,18 +1078,19 @@ int main(int argc, char* argv[]) {
     // Uruchom algorytm
     Solution solution;
     auto startTime = std::chrono::high_resolution_clock::now();
-    
+
     std::string algName = useApprox ? "approximate" : "exact";
     if (verbose) {
         std::cout << "\nRunning " << algName << " algorithm...\n" << std::endl;
     }
-    
+
     if (useApprox) {
         solution = approximateExpansion(g1, g2, k);
-    } else {
+    }
+    else {
         solution = exactAlgorithm(g1, g2, k, false);
     }
-    
+
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
@@ -1080,7 +1108,8 @@ int main(int argc, char* argv[]) {
     if (verbose) {
         printSolutionVerbose(std::cout, solution, g1, g2, algName, g1.n, g2.n, k);
         std::cout << "Execution time: " << duration.count() << " ms" << std::endl;
-    } else {
+    }
+    else {
         printSolutionSimple(std::cout, solution);
     }
 
@@ -1091,12 +1120,13 @@ int main(int argc, char* argv[]) {
         if (verbose) {
             printSolutionVerbose(outFile, solution, g1, g2, algName, g1.n, g2.n, k);
             std::cout << "\nResult saved to out.txt" << std::endl;
-        } else {
+        }
+        else {
             printSolutionSimple(outFile, solution);
         }
 
-
-    } else {
+    }
+    else {
         if (verbose) {
             std::cerr << "Warning: Could not create out.txt" << std::endl;
         }
