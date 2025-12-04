@@ -9,6 +9,8 @@
 
 using namespace std;
 
+static constexpr int NO_MAPPING = -1;
+
 // Struktura reprezentujaca graf skierowany
 struct Graph {
     // Liczba wierzcholkow
@@ -17,7 +19,7 @@ struct Graph {
     std::vector<std::vector<int>> matrix;
 
     explicit Graph(const int vertices = 0) : n(vertices) {
-        matrix.resize(n, std::vector(n, 0));
+        matrix.resize(n, std::vector<int>(n, 0));
     }
     Graph(const Graph&) = default;
     Graph& operator=(const Graph&) = default;
@@ -104,8 +106,6 @@ struct Mappings {
     // Lista mapowan
     std::vector<std::vector<int>> maps;
 
-    static constexpr int NO_MAPPING = -1;
-
     explicit Mappings(const int copies_count = 0, const int vertices = 0) : n(vertices), k(copies_count) {
         maps.resize(copies_count, std::vector<int>(vertices, NO_MAPPING));
     }
@@ -136,7 +136,7 @@ int countCost(const int u, const int v, const Graph &G1, const Graph &G2Extended
     int costIncrease = 0;
     for (size_t i = 0; i < mapping.size(); i++) {
         // Pomijamy niezmapowane wierzcholki
-        if (mapping[i] == Mappings::NO_MAPPING) {
+        if (mapping[i] == NO_MAPPING) {
             continue;
         }
         const int reqOut = G1.matrix[u][i];
@@ -186,7 +186,7 @@ uint32_t computeDeltaExist(const uint32_t u, const uint32_t v, const Graph& g1, 
     uint32_t covered = 0;
     for (int x = 0; x < g1.n; ++x) {
         const auto mappedX = mapping[x];
-        if (mappedX == Mappings::NO_MAPPING) {
+        if (mappedX == NO_MAPPING) {
             continue;
         }
 
@@ -215,14 +215,14 @@ Candidates chooseCandidates(const uint32_t u, const Graph& g1, const Graph &g2, 
     // Znajdz wierzcholki juz uzyte w biezacym mapowaniu
     std::set<int> usedVertices;
     for (int mappedVertex : mapping) {
-        if (mappedVertex != Mappings::NO_MAPPING) {
+        if (mappedVertex != NO_MAPPING) {
             usedVertices.insert(mappedVertex);
         }
     }
 
     for (int v = 0; v < g2.n; ++v) {
         // Pomin wierzcholki juz uzyte w biezacej kopii
-        if (usedVertices.contains(v)) {
+        if (usedVertices.find(v) != usedVertices.end()) {
             continue;
         }
         
@@ -253,7 +253,7 @@ void addMissingEdges(const uint32_t u, const uint32_t v, const Graph& g1, Graph 
     for (int i = 0; i < g1.n; ++i) {
         const auto mapped = mapping[i];
         // Pomijamy dla niezmappowanych wierzcholkow
-        if (mapped == Mappings::NO_MAPPING) {
+        if (mapped == NO_MAPPING) {
             continue;
         }
 
@@ -321,7 +321,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
     auto isImageUnique = [&](uint32_t currentCopy) -> bool {
         std::vector<int> currentImage;
         for (int u = 0; u < g1.n; ++u) {
-            if (mappings.maps[currentCopy][u] != Mappings::NO_MAPPING) {
+            if (mappings.maps[currentCopy][u] != NO_MAPPING) {
                 currentImage.push_back(mappings.maps[currentCopy][u]);
             }
         }
@@ -330,7 +330,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
         for (uint32_t prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
             std::vector<int> prevImage;
             for (int u = 0; u < g1.n; ++u) {
-                if (mappings.maps[prevCopy][u] != Mappings::NO_MAPPING) {
+                if (mappings.maps[prevCopy][u] != NO_MAPPING) {
                     prevImage.push_back(mappings.maps[prevCopy][u]);
                 }
             }
@@ -357,7 +357,7 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
             // (ktore nie sa juz uzyte w biezacym mapowaniu)
             std::set<int> usedVertices;
             for (int j = 0; j < g1.n; ++j) {
-                if (j != static_cast<int>(u) && mappings.maps[copyIdx][j] != Mappings::NO_MAPPING) {
+                if (j != static_cast<int>(u) && mappings.maps[copyIdx][j] != NO_MAPPING) {
                     usedVertices.insert(mappings.maps[copyIdx][j]);
                 }
             }
@@ -378,11 +378,11 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                 
                 for (int x = 0; x < g1.n; ++x) {
                     int mappedX = mappings.maps[copyIdx][x];
-                    if (mappedX == Mappings::NO_MAPPING) continue;
+                    if (mappedX == NO_MAPPING) continue;
                     
                     for (int y = 0; y < g1.n; ++y) {
                         int mappedY = mappings.maps[copyIdx][y];
-                        if (mappedY == Mappings::NO_MAPPING) continue;
+                        if (mappedY == NO_MAPPING) continue;
                         
                         int reqEdges = g1.matrix[x][y];
                         int haveEdges = extended.matrix[mappedX][mappedY];
@@ -399,11 +399,11 @@ Solution initializeApproximateExpansion(const Graph &g1, const Graph &g2, const 
                     // Dodaj brakujace krawedzie do extended
                     for (int x = 0; x < g1.n; ++x) {
                         int mappedX = mappings.maps[copyIdx][x];
-                        if (mappedX == Mappings::NO_MAPPING) continue;
+                        if (mappedX == NO_MAPPING) continue;
                         
                         for (int y = 0; y < g1.n; ++y) {
                             int mappedY = mappings.maps[copyIdx][y];
-                            if (mappedY == Mappings::NO_MAPPING) continue;
+                            if (mappedY == NO_MAPPING) continue;
                             
                             int reqEdges = g1.matrix[x][y];
                             int& haveEdges = extended.matrix[mappedX][mappedY];
@@ -615,7 +615,7 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
     // Zbierz obraz biezacej kopii (posortowany)
     std::vector<int> currentImage;
     for (int i = 0; i < n; ++i) {
-        if (mappings.maps[currentCopy][i] != Mappings::NO_MAPPING) {
+        if (mappings.maps[currentCopy][i] != NO_MAPPING) {
             currentImage.push_back(mappings.maps[currentCopy][i]);
         }
     }
@@ -625,7 +625,7 @@ bool isImageUnique(const Mappings& mappings, int currentCopy, int n) {
     for (int prevCopy = 0; prevCopy < currentCopy; ++prevCopy) {
         std::vector<int> prevImage;
         for (int i = 0; i < n; ++i) {
-            if (mappings.maps[prevCopy][i] != Mappings::NO_MAPPING) {
+            if (mappings.maps[prevCopy][i] != NO_MAPPING) {
                 prevImage.push_back(mappings.maps[prevCopy][i]);
             }
         }
@@ -737,7 +737,7 @@ void recursiveBranching(
             for (int idx = 0; idx < g1.n; ++idx) {
                 if (idx == static_cast<int>(u)) {
                     currentImage.push_back(v);
-                } else if (mappings.maps[copyIndex][idx] != Mappings::NO_MAPPING) {
+                } else if (mappings.maps[copyIndex][idx] != NO_MAPPING) {
                     currentImage.push_back(mappings.maps[copyIndex][idx]);
                 }
             }
@@ -748,7 +748,7 @@ void recursiveBranching(
             for (int prevCopy = 0; prevCopy < copyIndex; ++prevCopy) {
                 std::vector<int> prevImage;
                 for (int idx = 0; idx < g1.n; ++idx) {
-                    if (mappings.maps[prevCopy][idx] != Mappings::NO_MAPPING) {
+                    if (mappings.maps[prevCopy][idx] != NO_MAPPING) {
                         prevImage.push_back(mappings.maps[prevCopy][idx]);
                     }
                 }
@@ -781,7 +781,7 @@ void recursiveBranching(
 
         // Przycinanie - mozemy przerwac bo kandydaci sa posortowani rosnaco wg kosztu
         if (newCost >= bestSolution.cost) {
-            mappings.maps[copyIndex][u] = Mappings::NO_MAPPING;
+            mappings.maps[copyIndex][u] = NO_MAPPING;
             break;
         }
 
@@ -791,7 +791,7 @@ void recursiveBranching(
         // Aktualizuj G'_2 o brakujace krawedzie
         for (uint32_t i = 0; i < g1.n; ++i) {
             const int mappedI = mappings.maps[copyIndex][i];
-            if (mappedI == Mappings::NO_MAPPING) {
+            if (mappedI == NO_MAPPING) {
                 continue;
             }
 
@@ -836,7 +836,7 @@ void recursiveBranching(
         }
 
         // Cofnij mapowanie
-        mappings.maps[copyIndex][u] = Mappings::NO_MAPPING;
+        mappings.maps[copyIndex][u] = NO_MAPPING;
     }
 }
 
