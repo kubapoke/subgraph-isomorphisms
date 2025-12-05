@@ -254,7 +254,7 @@ def parse_algorithm_output(output: str, n1: int, n2: int, k: int) -> Optional[Tu
 # TEST RUNNER
 # ============================================================================
 
-def run_test_with_validation(filepath: str, algorithm: str, exe_path: str = r".\cmake-build-debug\subgraph-isomorphism.exe") -> Dict:
+def run_test_with_validation(filepath: str, algorithm: str, exe_path: str = r".\build\subgraph-isomorphism.exe") -> Dict:
     # Wczytaj dane wejściowe
     try:
         g1, g2, k = parse_graph_from_file(filepath)
@@ -405,7 +405,7 @@ def generate_random_test_content(seed: int) -> str:
     
     return "\n".join(lines)
 
-def run_fuzzing_session(count: int, start_seed: int, exe_path: str = r".\cmake-build-debug\subgraph-isomorphism.exe"):
+def run_fuzzing_session(count: int, start_seed: int, exe_path: str = r".\build\subgraph-isomorphism.exe"):
     print("=" * 80)
     print(f"FUZZING SESSION: {count} tests, start_seed={start_seed}")
     print("=" * 80)
@@ -458,7 +458,7 @@ def main():
     parser = argparse.ArgumentParser(description="Giga Sprawdzarka")
     parser.add_argument('--fuzz', type=int, help="Run N random fuzz tests", default=0)
     parser.add_argument('--seed', type=int, help="Start seed for fuzzing", default=None)
-    parser.add_argument('--exe', type=str, help="Path to executable", default=r".\cmake-build-debug\subgraph-isomorphism.exe")
+    parser.add_argument('--exe', type=str, help="Path to executable", default=r".\build\subgraph-isomorphism.exe")
     args = parser.parse_args()
 
     if args.fuzz > 0:

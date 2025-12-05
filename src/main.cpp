@@ -1064,7 +1064,12 @@ int main(int argc, char* argv[]) {
     }
     
     auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    // Użyj mikrosekund dla większej precyzji i konwertuj na double ms
+    auto durationMicro = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    double durationMs = durationMicro.count() / 1000.0;
+
+    // ZAWSZE wypisz zmierzony czas w formacie łatwym do sparsowania (na stderr)
+    std::cerr << "TIME_MS: " << durationMs << std::endl;
 
     // Sprawdź czy znaleziono rozwiązanie
     if (!solution.found || solution.cost == UINT64_MAX) {
@@ -1079,7 +1084,7 @@ int main(int argc, char* argv[]) {
     // Wypisz wyniki
     if (verbose) {
         printSolutionVerbose(std::cout, solution, g1, g2, algName, g1.n, g2.n, k);
-        std::cout << "Execution time: " << duration.count() << " ms" << std::endl;
+        std::cout << "Execution time: " << durationMs << " ms" << std::endl;
     } else {
         printSolutionSimple(std::cout, solution);
     }

@@ -1,0 +1,53 @@
+Proszę Państwa,
+
+Drugi etap obejmuje oprogramowanie algorytmów i przygotowania przykładów.
+Składamy program/programy wykonywalne. Można przygotować oddzielne programy dla poszczególnych algorytmów albo jeden program zawierający wszystkie algorytmy. Dla jednego programu wybór algorytmu jest sterowany parametrem programu.
+
+Moje sugestie:
+
+    uruchomienie z konsoli w formie:
+    [] [] []
+    […] oznacza nieobowiązkowy parametr wywołania
+    np. plik z danymi oznacza ścieżkę do pliku.
+
+Obowiązkowo dołączamy plik readme.txt, możliwie krótki, opisujący sposób wywołania programu/programów i sposób komunikowania wyników (jeśli nieoczywisty).
+
+Proszę przygotować po kilka przykładów, które umożliwią sprawdzenie, czy program/programy wykonują się i wykonują poprawne obliczenie.
+
+Będę akceptował wszystkie rozwiązania zgodne ze zdrowym rozsądkiem (zdrowym rozsądkiem w moim rozumieniu).
+
+Materiały etapu wysyłamy za pomocą poczty elektronicznej albo - jeśli poczta nie pozwala - przynosimy na najbliższe zajęcia.
+
+Pod koniec czwartkowego wykładu będzie możliwość konsultacji dotyczących II etapu.
+
+Władysław Homenda
+
+
+Proszę Państwa,
+
+Podsumowanie założeń i sposobu procedowania zadania laboratoryjnego:
+
+    zadanie może być realizowane w zespołach co najwyżej czteroosobowych w jednej z dwóch wersji:
+    a) łatwiejszej, przedmiotem zadania są grafy, rozwiązanie oceniane w skali do 3.5 z możliwością poprawy oceny na 4.0,
+    b) trudniejszej, przedmiotem są multigrafy, rozwiązanie oceniane w pełnej skali do 5.0.
+    W przypadku wersji trudniejszej w poniższym opisie słowo grafy oznacza multigrafy.
+
+    Dane wejściowe będą zapisane w formacie wspólnym dla wszystkich zespołów z założeniem wymienialności danych między zespołami. Będą to pliki tekstowe zawierające opisy dwóch grafów:
+
+    pierwszy wiersz pliku zawiera liczbę wierzchołków pierwszego grafu, ta informacja jest zapisana w jednym wierszu pliku,
+    następne wiersze pliku zawierają wiersze macierzy sąsiedztwa pierwszego grafu z elementami oddzielonymi spacją,
+    kolejny wiersz pliku zawiera liczbę wierzchołków drugiego grafu,
+    następne wiersze pliku zawierają wiersze macierzy sąsiedztwa drugiego grafu,
+    po macierzy sąsiedztwa w kolejnych wierszach pliku mogą być zapisane dodatkowe dane.
+    W macierzy sąsiedztwa zapisane są liczby krawędzi między wierzchołkami (dla grafów to będzie 0 lub 1, dla multigrafów to będzie 0 lub dodatnia liczba całkowita). Dla grafów nieskierowanych macierz sąsiedztwa będzie symetryczna względem głównej przekątnej. Informacje dodatkowe można dodatkowo zapisać bezpośrednio po macierzach sąsiedztwa.
+
+    Rozwiązaniem zadania będzie sprawozdanie i program komputerowy kompilowany i uruchomiany na komputerach sali laboratoryjnej 304 w systemie Windows. Należy opracować następujące pojęcia:
+    a) rozmiar grafu, proszę przyjąć rozsądne określenie zgodne z zastosowaniem tego pojęcia,
+    b) rozsądną metrykę w zbiorze wszystkich grafów,
+    c) minimalne rozszerzenie drugiego grafu do grafu zawierającego zadaną liczbę (jeden w najprostszym przypadku) podgrafów izomorficznym z pierwszym grafem.
+    Sprawozdanie powinno zawierać:
+    a) opisy/definicje powyższych pojęć z uzasadnieniami/dowodami. Opisy mogą być przygotowane na podstawie literatury (wówczas należy przytoczyć źródło i podać krótkie uzasadnienie) lub opracowane autorsko (wówczas wskazane jest krótkie uzasadnienie przyjętej definicji),
+    b) opisy algorytmów implementacji pojęć z uzasadnieniem złożoności obliczeniowej. W przypadku wykładniczej złożoności algorytmu dokładnego należy opracować algorytm aproksymujący o złożoności wielomianowej,
+    c) wyniki testów obliczeniowych z charakterystykami czasowymi ("czas" obliczeń w zależności od rozmiaru zadania),
+    d) krótki opis techniczny programu z dokładną instrukcją kompilacji i uruchomienia programu,
+    e) wnioski.

@@ -1,0 +1,708 @@
+\documentclass[titlepage]{article}
+\usepackage{graphicx}
+\usepackage[utf8]{inputenc}
+\usepackage[MeX]{polski}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{multirow}
+\usepackage{adjustbox}
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{amsmath} 
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{mathtools}
+\usepackage{soul}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\newtheorem{definicja}{Definicja}
+\title{Teoria algorytmów i obliczeń\\
+\vspace{0.5mm}\\
+\large Zadanie projektowe -- raport 1}
+\author{Jakub Pączka\\
+Maksymilian Soszyński\\
+Kacper Trzciński\\
+Stanisław Zaprzalski}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Abstrakt}
+W pracy rozważamy problem wyszukiwania minimalnego rozszerzenia multigrafu skierowanego $G_2$, które zawiera co najmniej $k$ różnych podgrafów izomorficznych do zadanego multigrafu $G_1$. W raporcie przedstawiliśmy zarówno algorytm dokładny, który znajduje rozwiązanie optymalne w czasie wykładniczym jak i algorytm aproksymacyjny, odnajdujący przybliżone rozwiązanie w czasie wielomianowym.
+
+\section{Opis problemu}
+\subsection{Wprowadzenie definicji i oznaczeń}
+W celu precyzyjnego sformułowania problemu, konieczne jest wprowadzenie formalnych definicji kluczowych pojęć, w szczególności dla multigrafów skierowanych, z którymi będziemy pracować. Uzasadnienie wyboru najistotniejszych definicji zostanie przedstawione w dalszej sekcji.
+
+\subsubsection{Definicje}
+
+\begin{definicja}[Multigraf skierowany]
+Multigrafem skierowanym nazywamy parę $G = (V, E)$, gdzie:
+\begin{itemize}
+    \item $V$ jest skończonym zbiorem wierzchołków,
+    \item $E : V \times V \to \mathbb{N}_0$ jest funkcją krotności krawędzi, gdzie $E(u, v)$ oznacza liczbę krawędzi skierowanych z wierzchołka $u$ do wierzchołka $v$.
+\end{itemize}
+Dopuszczamy istnienie pętli (czyli krawędzi, gdzie $u=v$).
+\end{definicja}
+
+\begin{definicja}[Rozmiar multigrafu]
+Rozmiarem multigrafu $G = (V, E)$ nazywamy liczbę jego krawędzi:
+\[
+|G| := \sum_{(u,v) \in V \times V} E(u,v)
+\]
+\end{definicja}
+
+\begin{definicja}[Izomorfizm multigrafów skierowanych]
+Dwa multigrafy skierowane $G_1 = (V_1, E_1)$ oraz $G_2 = (V_2, E_2)$ są izomorficzne ($G_1 \cong G_2$), jeśli istnieje bijekcja $M : V_1 \to V_2$ taka, że dla każdej pary wierzchołków $u, v \in V_1$ zachodzi:
+\[
+E_1(u, v) = E_2(M(u), M(v))
+\]
+\end{definicja}
+
+\begin{definicja}[Zawieranie podgrafu izomorficznego]
+Mówimy, że multigraf skierowany $G_2 = (V_2, E_2)$ zawiera podgraf izomorficzny z multigrafem $G_1 = (V_1, E_1)$, jeśli istnieje funkcja różnowartościowa (iniekcja) 
+\[
+M : V_1 \to V_2
+\]
+taka, że dla każdej pary wierzchołków $u, v \in V_1$ zachodzi:
+\[
+E_1(u, v) \le E_2(M(u), M(v))
+\]
+Iniekcję $M$ nazywamy mapowaniem wierzchołków $G_1$ na wierzchołki $G_2$.
+\end{definicja}
+
+\begin{definicja}[Zawieranie $k$ podgrafów izomorficznych]
+Mówimy, że multigraf skierowany $G_2 = (V_2, E_2)$ zawiera co najmniej $k$ różnych podgrafów izomorficznych z multigrafem $G_1 = (V_1, E_1)$, jeśli istnieje zbiór $k$ iniekcji:
+\[
+M_1, M_2, \ldots, M_k : V_1 \to V_2
+\]
+takich, że:
+\[
+E_1(u, v) \le E_2(M_i(u), M_i(v)) \quad \text{dla wszystkich } u, v \in V_1, \; i = 1, \ldots, k,
+\]
+Oraz dodatkowo mapowania te posiadają różne obrazy, tzn.:
+\[
+\operatorname{Im}(M_i)\neq \operatorname{Im}(M_j), i\neq j
+\]
+\end{definicja}
+
+\begin{definicja}[Rozszerzenie multigrafu]
+Niech $G = (V, E)$ będzie multigrafem skierowanym.  
+Multigraf $G' = (V, E')$ nazwiemy rozszerzeniem $G$, jeśli dla każdej pary wierzchołków $u, v \in V$ zachodzi:
+\[
+E'(u, v) \ge E(u, v)
+\]
+\end{definicja}
+Rozszerzenie $G'$ powstaje z $G$ poprzez dodanie (być może zerowej liczby) krawędzi między istniejącymi wierzchołkami.
+
+\begin{definicja}[Koszt rozszerzenia -- metryka w zbiorze multigrafów skierowanych]
+Dla multigrafów $G = (V, E)$ i $G' = (V, E')$ na tym samym zbiorze 
+wierzchołków $V$, gdzie $G'$ jest rozszerzeniem $G$, definiujemy 
+koszt rozszerzenia:
+
+$$\text{cost}(G', G) := \sum_{(u, v) \in V \times V} E'(u, v) - E(u, v)$$
+
+\end{definicja}
+Koszt rozszerzenia jest liczbą krawędzi, które należy dodać do $G$, aby uzyskać $G'$.
+
+\begin{definicja}[Minimalne rozszerzenie grafu]
+Niech $G_1 = (V_1, E_1)$, $G_2 = (V_2, E_2)$ będą multigrafami skierowanymi oraz niech $k \in \mathbb{N}$.  
+\textbf{Minimalnym rozszerzeniem} grafu $G_2$ względem $G_1$ i liczby $k$ nazywamy taki multigraf $G'_2 = (V_2, E'_2)$, że:
+\begin{itemize}
+    \item $G'_2$ jest rozszerzeniem $G_2$,
+    \item $G'_2$ zawiera co najmniej $k$ różnych podgrafów izomorficznych z $G_1$,
+    \item koszt rozszerzenia $\text{cost}(G'_2, G_2)$ jest minimalny spośród wszystkich rozszerzeń spełniających powyższe warunki.
+\end{itemize}
+\end{definicja}
+
+\subsubsection{Uzasadnienie przyjętych definicji}
+
+Powyższe definicje zostały dobrane w sposób, który uznaliśmy za najbardziej naturalny dla zadanego problemu. W szczególności istotne są pojęcia rozmiaru multigrafu skierowanego, metryki w zbiorze multigrafów oraz minimalnego rozszerzenia.
+
+Wszystkie te pojęcia wprowadziliśmy w kategoriach krawędzi, gdyż taki wybór pozwala na prostszy zapis formalny i najbardziej naturalne rozszerzanie grafu $G_2$ zadanego w postaci macierzy sąsiedztwa.  
+
+Rozważmy jednak krótko wariant, w którym dopuszczamy również możliwość dodawania nowych wierzchołków, przy czym rozmiar rozszerzenia nadal mierzymy wyłącznie przez liczbę dodanych krawędzi. Zauważmy, że dla $k = 1$ dodawanie nowych wierzchołków nigdy nie byłoby korzystne. Przy założeniu $|V_1| \le |V_2|$ zawsze możemy bowiem zamiast tego przyporządkować do rozważanego wierzchołka $u \in V_1$ dowolny istniejący wierzchołek z $V_2$, uzyskując rozwiązanie co najmniej równie dobre.  
+
+Inaczej wygląda jednak sytuacja dla $k > 1$. W takim przypadku może okazać się, że liczba różnych możliwych mapowań jest niewystarczająca. W szczególności, gdy $k > \binom{|V_2|}{|V_1|}$, nie da się skonstruować wymaganej liczby wzajemnie różnych pod względem obrazu odwzorowań $M_1, \ldots, M_k$. W takiej sytuacji naturalnym rozwiązaniem jest rozszerzenie grafu $G_2$ o dodatkowe wierzchołki niezależne, aby umożliwić istnienie wymaganej liczby kopii.
+
+W dalszej części pracy będziemy zakładać, że rozszerzenia odbywają się wyłącznie poprzez dodawanie krawędzi, przy stałym zbiorze wierzchołków.
+
+\subsubsection{Oznaczenia}
+
+Dla multigrafów skierowanych $G_1 = (V_1, E_1)$ oraz $G_2 = (V_2, E_2)$ przyjmujemy następujące oznaczenia:
+
+\begin{itemize}
+    \item $n_1 := |V_1|$ -- liczba wierzchołków w grafie $G_1$,
+    \item $n_2 := |V_2|$ -- liczba wierzchołków w grafie $G_2$,
+    \item $m_1 := |E_1|$ -- liczba krawędzi w grafie $G_1$,
+    \item $m_2 := |E_2|$ -- liczba krawędzi w grafie $G_2$,
+    \item $E_{G_1}, E_{G_2}$ -- macierze krotności grafów $G_1$ i $G_2$.
+\end{itemize}
+
+\subsection{Sformułowanie problemu dokładnego} \label{exact}
+Dla danych multigrafów skierowanych $G_1=(V_1,E_1), G_2=(V_2,E_2)$ oraz liczby $k \in \mathbb{N}$ chcemy znaleźć \textbf{najmniejsze rozszerzenie} $G'_2$ grafu $G_2$ takie, że graf $G'_2$ zawiera co najmniej $k$ podgrafów izomorficznych z grafem $G_1$.
+
+\subsection{Sformułowanie problemu aproksymacyjnego} \label{approx}
+Dla danych multigrafów skierowanych $G_1=(V_1,E_1), G_2=(V_2,E_2)$ oraz liczby $k \in \mathbb{N}$ chcemy znaleźć pewne rozszerzenie $G'_2$ grafu $G_2$ takie, że graf $G'_2$ zawiera co najmniej $k$ podgrafów izomorficznych z~grafem $G_1$. Rozwiązanie musi działać w czasie wielomianowym w zależności od rozmiaru wejścia oraz należy zapewnić, aby zwracało możliwie jak najdokładniejsze wyniki.
+
+\section{Algorytm dokładny} \label{exact-algo}
+
+\subsection{Opis ogólny}
+Algorytm dokładny rozwiązujący problem opisany w sekcji \ref{exact} opiera się na przeszukiwaniu możliwych mapowań wierzchołków grafu $G_1$ na wierzchołki grafu $G_2$ dla wszystkich $k$ poszukiwanych kopii z~wykorzystaniem metody rozgałęziania. Aby zredukować czas działania, zastosujemy heurystyki mające na celu zminimalizować liczbę rozważanych rodzin mapowań.
+
+Dokładniej zależy nam, aby dla zadanych multigrafów $G_1$ i $G_2$ oraz liczby $k\in \mathbb{N}$ stworzyć rodzinę mapowań $M_i:V_1\rightarrow V_2$ dla $i\in \{1, \dots, k\}$. Każde mapowanie $M_i$ powinno być różnowartościowe. Ponadto, dla każdych $i, j$, gdzie $i\neq j$, mapowania $M_i$ oraz $M_j$ posiadają różne przeciwdziedziny $\operatorname{Im}(M_i) \ne \operatorname{Im}(M_j)$ -- czyli mapują wierzchołki $G_1$ na różne podzbiory wierzchołków $G_2$.
+
+Głównym założeniem jest, że graf $G'_2$ powstaje poprzez stopniowe rozszerzanie grafu $G_2$ -- brakujące krawędzie dodawane są zgodnie z kolejnymi tworzonymi mapowaniami. W dowolnym momencie algorytm zna aktualny koszt $\operatorname{cost}(G'_2, G_2)$, który jest równy liczbie wszystkich dodanych obecnie do $G_2$ krawędzi.
+
+Algorytm rozgałęzia się po kolejnych wierzchołkach kolejnych kopii grafu $G_1$ w ustalonym (według algorytmu opisanego w sekcji \ref{initial-ordering}) porządku $P = (p_1, p_2, \ldots, p_{n_1})$. Najpierw przypisywane są wierzchołki pierwszej kopii, następnie drugiej, aż do $k$-tej. Zachowanie ustalonego porządku pozwala w sposób deterministyczny przechodzić przez wszystkie mapowania unikając przy tym rozważania izomorficznych par.
+
+Maksymalna głębokość rekurencji wynosi wobec tego $k \cdot n_1$. W każdym kroku algorytm wykonuje co najwyżej $n_2$ rozgałęzień -- po jednym dla każdego wierzchołka grafu $G_2$.
+
+Kolejne sekcje przedstawiają poszczególne aspekty działania algorytmu, które zostaną wykorzystane w ostatecznym rozwiązaniu.
+
+\subsection{Ustalenie porządku rozgałęziania dla wierzchołków $G_1$} \label{initial-ordering}
+Aby uniknąć rozważania wzajemnie izomorficznych mapowań więcej niż jeden raz, musimy ustalić porządek $P = (p_1, p_2, \ldots, p_{n_1})$ wierzchołków grafu $G_1$, według którego przeprowadzana będzie procedura rozgałęziania.
+Porządek ten będzie ustalony według następujących kryteriów:
+
+\begin{enumerate}
+    \item \textbf{Maksymalna ilość krawędzi do już uporządkowanych wierzchołków.} Wybierając kolejny wierzchołek w porządku kierujemy się przede wszystkim łączną ilością krawędzi (zarówno wchodzących jak i wychodzących) łączącą go z wierzchołkami, które już znalazły się w porządku $P$. 
+    \item \textbf{Jak największy stopień wierzchołka.} Spośród wierzchołków posiadających równą liczbę krawędzi do uporządkowanych wierzchołków, będziemy chcieli wybierać te, o największym stopniu.
+\end{enumerate}
+
+Kryteria te zostały dobrane w ten sposób, gdyż zależy nam (z powodu opisanych w sekcji \ref{branching-strategy} heurystyk) na rozpatrywaniu wierzchołków w kolejności, która spowoduje, że w danym momencie będziemy rozpatrywać wierzchołki o jak największej liczbie połączeń do tych już zmapowanych.
+
+\paragraph{Pseudokod.}
+
+Algorytm wyznaczenia porządku może być opisany z wykorzystaniem poniższego pseudokodu:
+
+\begin{algorithm}[H]
+\caption{PorządekWierzchołków($G_1$)}
+\begin{algorithmic}[1]
+    \Require Graf $G_1 = (V_1, E_1)$
+    \Ensure Porządek wierzchołków $P = (p_1, p_2, \ldots, p_{n_1})$
+    \State $P[1..n_1] \gets$ \texttt{NULL}
+    \State $S[1..n_1] \gets 0$ \Comment{liczba krawędzi do już uporządkowanych wierzchołków}
+    \For{$i = 1$ \textbf{to} $n_1$}
+        \State Wybierz taki nieuporządkowany wierzchołek $v \in V_1$, że:
+        \State \hspace{1em}(a) $v$ ma \textbf{największą wartość} $S[v]$
+        \State \hspace{1em}(b) w przypadku remisu: $v$ ma \textbf{największy stopień} w $G_1$
+        \State \hspace{1em}(c) w przypadku dalszego remisu: wybierz \textbf{dowolny} taki $v$
+        \State $P[i] \gets v$
+        \ForAll{sąsiad $u$ wierzchołka $v$}
+            \State $S[u] \gets S[u] +$ liczba krawędzi (wchodzących i wychodzących) pomiędzy $u$ a uporządkowanym $v$
+        \EndFor
+    \EndFor
+    \State \Return $P$
+\end{algorithmic}
+\end{algorithm}
+
+
+\paragraph{Analiza złożoności.}
+Wyznaczenie tego porządku odbywa się raz na początku działania algorytmu. W każdej spośród $n_1$ iteracji odbywa się przejście przez wszystkie wierzchołki grafu $G_1$ i wybranie najlepszego z nich, co jesteśmy w stanie zrobić w czasie $O(n_1)$. Następnie dokonujemy aktualizacji tablicy $S$, również w czasie $O(n_1)$. Wobec tego znalezienie przyporządkowania zajmuje łącznie $O(n_1^2)$.
+
+\subsection{Wybór wierzchołka $G_2$ dla mapowania} \label{branching-strategy}
+Dla bieżącego wierzchołka $u \in V(G_1)$ z aktualnie rozpatrywanej kopii grafu $G_1$ algorytm tworzy listę kandydatów $V \subseteq V(G_2)$, zawierającą wszystkie wierzchołki $v \in V(G_2)$, które nie zostały jeszcze przypisane w bieżącej kopii. Następnie lista ta jest porządkowana według trzech kryteriów:
+
+\begin{enumerate}
+    \item \textbf{Maksymalizacja zgodności z istniejącym grafem.}  
+     Najpierw wybierane są wierzchołki $v$, dla których największa liczba wymaganych krawędzi już istnieje w~$G'_2$ (czy to istniejących w~pierwotnym grafie, czy powstałych w wyniku wcześniejszych rozszerzeń).
+    \item \textbf{Minimalizacja przyrostu kosztu.}  
+    W przypadku remisów preferowane są te wierzchołki $v$, które minimalizują liczbę krawędzi, jakie trzeba będzie dorysować do $G'_2$ po przypisaniu $u \mapsto v$.
+    \item \textbf{Maksymalny stopień wierzchołka.} W przypadku dalszego remisu preferowane są wierzchołki z $G'_2$ o jak największym stopniu.
+\end{enumerate}
+
+Warto zauważyć, że pierwsza heurystyka minimalizuje \textbf{maksymalną liczbę krawędzi}, którą będziemy musieli w przyszłości dorysować. Jeśli zadbamy o to, że pewne krawędzie $G_1$ będą pokryte przez istniejące już krawędzie $G'_2$, na pewno nie będziemy musieli już później dodawać ich kosztu do naszego wyniku.
+\newpage
+\paragraph{Pseudokod.}
+
+Kryterium sortowania wierzchołków można opisać pseudokodem w następujący sposób:
+
+\begin{algorithm}[H]
+\caption{WybierzKandydatów($u$, $G_1$, $G_2$, $G'_2$, $\textit{M}$)}
+\begin{algorithmic}[1]
+    \Require Bieżący wierzchołek $u \in V(G_1)$, graf $G_1$, aktualny graf rozszerzony $G'_2$, mapowanie $\textit{M}$
+    \Ensure Posortowana lista kandydatów $\textit{Candidates}$ w kolejności przypisania do $u$
+    \State $\textit{Candidates} \gets \emptyset$
+    \ForAll{$v \in V(G_2)$, dla których $v \notin \operatorname{Im}(\textit{M})$}
+        \State $\Delta_{\textit{cost}} \gets$ \textsc{ObliczKoszt}($u$, $v$, $G_1$, $G'_2$, $\textit{M}$)
+        \State $\Delta_{\textit{exist}} \gets$ liczba krawędzi z $E_{G'_2}$, które pokrywają krawędzie $E_{G_1}$ incydentne z $u$
+        \State Dodaj $(v, \Delta_{\textit{cost}}, \Delta_{\textit{exist}})$ do $\textit{Candidates}$
+    \EndFor
+    \State Posortuj $\textit{Candidates}$ rosnąco według $\Delta_{\textit{exist}}$, w przypadku remisu malejąco według $\Delta_{\textit{cost}}$, a w przypadku dalszego remisu po stopniu wierzchołka w $G'_2$
+    \State \Return $\textit{Candidates}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Analiza złożoności.}
+Sprawdzenie, ile krawędzi trzeba będzie dorysować dla danego przypisania da się wykonać (według algorytmu opisanego w sekcji \ref{cost-and-state}) w czasie $O(n_1)$. Ilość krawędzi już pokrytych przez krawędzie $G'_2$ można obliczyć używając analogicznej metody. Ilość możliwych przypisań wynosi $O(n_2)$. Po ustaleniu dla każdego przypisania jego kosztu, posortowanie ich zajmie $O(n_2 \log n_2)$ czasu. Wobec tego wyznaczenie kolejności mapowania danego wierzchołka $u$ na wierzchołki $v\in V(G_2)$ zajmuje łącznie $O(n_1n_2 + n_2 \log n_2)$ czasu.
+
+\subsection{Porządek mapowań} \label{lex-ordering}
+Aby uniknąć rozważania izomorficznych zbiorów mapowań, wprowadzamy na nich ustalony porządek kanoniczny. Przy przypisywaniu kolejnych kopii $M_i$ wymuszamy, by dla zadanego porządku $P = (p_1, p_2, \ldots, p_{n_1})$ wierzchołków $G_1$ kolejne mapowania $M_i$ były uporządkowane rosnąco zgodnie z poniższą zasadą
+\[
+(M_1(p_1), \ldots,M_1(p_{n_1})) < (M_2(p_1), \ldots,M_2(p_{n_1})) < \cdots < (M_k(p_1), \ldots,M_k(p_{n_1}))
+\]
+w sensie standardowego porządku leksykograficznego.  
+W ten sposób każda kombinacja kopii $G_1$ jest rozpatrywana co najwyżej raz, co znacząco zmniejsza łączną liczbę rozpatrywanych zbiorów mapowań. Gwarantuje nam to również, że każda para dwóch różnych mapowań $M_i$ będzie posiadała różne przeciwdziedziny.
+
+\subsection{Obliczanie kosztu i aktualizacja stanu} \label{cost-and-state}
+Po przypisaniu $u \mapsto v$ dla bieżącego wierzchołka $u$ obliczany jest przyrost kosztu -- liczba nowych krawędzi, które należy dodać do $G'_2$, by zachować zgodność z krotnościami w $G_1$.  
+Koszt ten obliczamy względem wszystkich wcześniej przypisanych wierzchołków (zarówno z tej samej kopii, jak i z kopii wcześniejszych), z wykorzystaniem aktualnej macierzy krotności $E_{G'_2}$.  
+Jeśli dla pewnej pary wierzchołków $(u',v')$ zachodzi, że $E_{G'_2}(v,v') < E_{G_1}(u,u')$, koszt przypisania jest zwiększany o liczbę brakujących krawędzi.
+
+\newpage
+\paragraph{Pseudokod.}
+
+Obliczenie kosztu pojedynczego przypisania odbywa się zgodnie z poniższym pseudokodem:
+
+\begin{algorithm}[H]
+\caption{ObliczKoszt($u$, $v$, $G_1$, $G'_2$, $\textit{M}$)}
+\begin{algorithmic}[1]
+    \Require Bieżące przypisanie $u \mapsto v$, grafy $G_1$, $G'_2$, 
+             aktualne mapowanie $\textit{M}$
+    \Ensure Przyrost kosztu $\Delta_{\textit{cost}}$
+    \State $\Delta_{\textit{cost}} \gets 0$
+    \ForAll{wcześniej przypisane pary $(u', v') \in \textit{M}$}
+        \State $\textit{reqOut} \gets E_{G_1}(u, u')$ \Comment{wymagana liczba krawędzi z $u$ do $u'$}
+        \State $\textit{reqIn} \gets E_{G_1}(u', u)$ \Comment{wymagana liczba krawędzi z $u'$ do $u$}
+        \State $\textit{curOut} \gets E_{G'_2}(v, v')$
+        \State $\textit{curIn} \gets E_{G'_2}(v', v)$
+        \If{$\textit{curOut} < \textit{reqOut}$}
+            \State $\textit{diff} \gets \textit{reqOut} - \textit{curOut}$
+            \State $\Delta_{\textit{cost}} \gets \Delta_{\textit{cost}} + \textit{diff}$
+        \EndIf
+        \If{$\textit{curIn} < \textit{reqIn}$}
+            \State $\textit{diff} \gets \textit{reqIn} - \textit{curIn}$
+            \State $\Delta_{\textit{cost}} \gets \Delta_{\textit{cost}} + \textit{diff}$
+        \EndIf
+    \EndFor
+    \State \Return $\Delta_{\textit{cost}}$
+\end{algorithmic}
+\end{algorithm}
+
+
+\paragraph{Analiza złożoności.}
+Obliczenie kosztu przypisania pojedynczego wierzchołka $u\in V(G_1)$ wymaga przejścia po jego sąsiadach w $G_1$, co zajmuje czas $O(n_1)$. Reszta operacji wykonuje się w czasie stałym.
+
+\subsection{Przycinanie gałęzi}
+Gałęzie przeszukiwania są przycinane natychmiast, gdy bieżący koszt $n$ przekroczy albo dorówna wartości najlepszego znanego kosztu $n_{\min}$. Nie stosujemy dodatkowych dolnych oszacowań -- przycinanie odbywa się wyłącznie na podstawie bieżącego kosztu i porządku kanonicznego mapowań.
+
+\subsection{Wykorzystanie klas abstrakcji}
+Dodatkową optymalizacją, możliwą do zastosowania jest grupowanie wierzchołków $G_2$ w klasy abstrakcji na podstawie ich lokalnej struktury sąsiedztwa.  
+W przypadku algorytmu znajdującego rozszerzenie dla $k$ kopii takie grupowanie musi być aktualizowane każdorazowo po rozpoczęciu rozważania nowej kopii $G_1$, gdyż dodane w poprzednich mapowaniach krawędzie mogą zmieniać relacje między wierzchołkami. Jednak w przypadku algorytmu znajdującego rozszerzenie dla pojedynczej kopii, wystarczy wykonać ten krok tylko raz.
+
+Ściślej mówiąc, dwa wierzchołki $u, v\in V(G_2)$ są wzajemnie równoważne przy wyznaczaniu mapowań, jeśli spełniony jest jeden z dwóch warunków:
+\begin{enumerate}
+    \item $u$ i $v$ posiadają ten sam zbiór sąsiadów (włącznie z krotnością i skierowaniem krawędzi).
+    \item Jak wyżej, jednak dodatkowo $u$ i $v$ sąsiadują ze sobą nawzajem (ponownie, krotność krawędzi w~obu kierunkach musi być jednakowa).
+\end{enumerate}
+
+W grafach zawierających pętle, wszystkie wierzchołki w jednej klasie abstrakcji muszą posiadać również dokładnie taką samą ich ilość.
+
+Widzimy, że dodawanie do problemu bardziej skomplikowanych klas grafów (multigrafy o wielokrotnych krawędziach, grafy skierowane) znacząco redukuje ilość potencjalnych zbiorów wierzchołków dobranych w klasy abstrakcji. Zdecydowaliśmy jednak, że wciąż o niej wspomnimy, gdyż jest to potencjalna redukcja wykładnika rozgałęziania i może okazać się przydatna np. do redukcji niektórych klik w grafach prostych.
+
+\paragraph{Pseudokod.}
+
+Wyznaczanie klas abstrakcji odbywa się zgodnie z poniższym pseudokodem:
+
+\begin{algorithm}[H]
+\caption{WyznaczKlasyAbstrakcji($G_2$)}
+\begin{algorithmic}[1]
+    \Require Graf $G_2 = (V_2, E_2)$
+    \Ensure Zbiór klas abstrakcji $\mathcal{C} = \{C_1, C_2, \dots\}$ wierzchołków $G_2$
+    \State $\mathcal{C} \gets \emptyset$
+    \ForAll{$u \in V_2$}
+        \State znaleziono $\gets$ \textbf{false}
+        \ForAll{$C \in \mathcal{C}$}
+            \If{$u$ jest równoważny z reprezentantem klasy $C$ (sąsiedzi + krotności + pętle)}
+                \State Dodaj $u$ do $C$
+                \State znaleziono $\gets$ \textbf{true}
+                \State \textbf{break}
+            \EndIf
+        \EndFor
+        \If{nie znaleziono}
+            \State Utwórz nową klasę $C_{\text{new}} \gets \{u\}$
+            \State Dodaj $C_{\text{new}}$ do $\mathcal{C}$
+        \EndIf
+    \EndFor
+    \State \Return $\mathcal{C}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Analiza złożoności.}
+Dla każdego wierzchołka $u\in V(G_2)$ musimy przejść przez istniejące już klasy abstrakcji (których jest co najwyżej liniowo wiele) i dla każdej z nich sprawdzić zgodność sąsiadów $u$ z~zawartymi tam wierzchołkami -- jesteśmy w stanie zrobić to również w czasie liniowym. Porządkowanie wierzchołków w klasy abstrakcji odbywa się z użyciem standardowego algorytmu \href{https://cp-algorithms.com/data_structures/disjoint_set_union.html}{find-union}, możemy więc przyjąć, że zgrupowanie wierzchołków zajmuje czas stały. Daje nam to całkowitą złożoność $O(n_2^3)$.
+
+Ze względu na koszt wielokrotnego wyznaczania klas abstrakcji optymalizacja ta może okazać się nieprzydatna w praktyce. Z tego powodu zostanie ona pominięta w pseudokodzie pełnego algorytmu, jednak nie wykluczamy zastosowania jej w ostatecznej wersji programu, jeżeli znajdziemy praktyczne przypadki, dla których jest ona efektywna.
+
+\subsection{Struktury danych i cofanie stanu}
+Grafy $G_1$, $G_2$ oraz $G'_2$ reprezentujemy jako macierze krotności $E_{G_1}$, $E_{G_2}$ oraz $E_{G'_2}$. Dodatkowo przechowujemy:
+\begin{itemize}
+    \item wektor odwiedzin dla bieżącej kopii,
+    \item stos zmian (do cofania po wycofaniu przypisania),
+    \item bieżący koszt $n$ oraz globalny minimalny koszt $n_{\min}$,
+    \item najlepsze dotychczasowe rozszerzenie $G'_{2_{\min}}$.
+\end{itemize}
+
+\subsection{Kryterium zakończenia}
+Jeżeli głębokość rekurencji osiągnie $k \cdot n_1$ (tzn. wszystkie mapowania są pełne), to bieżące rozszerzenie $G'_2$ jest nowym kandydatem na wynik działania algorytmu.  
+Jeżeli jego koszt jest mniejszy od dotychczasowego $n_{\min}$, aktualizujemy wartość $n_{\min}$ i zapamiętujemy $G'_{2_{\min}}$.
+
+\subsection{Działanie algorytmu}
+
+Korzystając z wymienionych wyżej heurystyk i algorytmów, pseudokod opisujący pojedyncze rozgałęzienie algorytmu dokładnego wygląda w następujący sposób:
+
+\begin{algorithm}[H]
+\caption{RozgałęzienieRekurencyjne($i$, $j$, $M_i$, $G_1$, $G_2$, $G'_2$, $n$, $prefixEqual$, $G'_{2_{\min}}$, $n_{\min}$)}
+\begin{algorithmic}[1]
+    \Require
+        $i$ -- numer bieżącej kopii grafu $G_1$ ($1 \le i \le k$) \\
+        $j$ -- indeks bieżącego wierzchołka w porządku $P$ ($1 \le j \le n_1$) \\
+        $M_i$ -- aktualne mapowanie dla kopii $i$ \\
+        $G_1$, $G_2$, $G'_2$ -- grafy \\
+        $n$ -- bieżący koszt rozszerzenia $G'_2$ \\
+        $prefixEqual$ -- wskaźnik czy wcześniejsze przypisania w $M_i$ są takie same jak w $M_{i-1}$ \\
+        $G'_{2_{\min}}$, $n_{\min}$ -- globalne najlepsze rozszerzenie i koszt
+
+    \Ensure Aktualizacja $G'_{2_{\min}}$ i $n_{\min}$
+
+    \If{$j > n_1$} \Comment{zmapowaliśmy już wszystkie wierzchołki $i$-tej kopii}
+        \If{$i == k$} 
+            \If{$n < n_{\min}$}
+                \State $n_{\min} \gets n$
+                \State $G'_{2_{\min}} \gets G'_2$
+            \EndIf
+        \Else
+            \State $M_{i+1} \gets \emptyset$
+            \State \textbf{Wywołaj} RozgałęzienieRekurencyjne($i+1$, 1, $M_{i+1}$, $G_1$, $G_2$, $G'_2$, $n$, \textbf{true}, $G'_{2_{\min}}$, $n_{\min}$)
+        \EndIf
+        \State \Return
+    \EndIf
+
+    \State $u \gets P[j]$
+    \State $\textit{Candidates} \gets$ \textsc{WybierzKandydatów}($u$, $G_1$, $G_2$, $G'_2$, $M_i$)
+
+    \ForAll{$(v, \Delta_{\textit{cost}}, \_) \in \textit{Candidates}$}
+        \If{$prefixEqual$} 
+            \If{$j < n_1$ \textbf{and} $v < M_{i-1}[u]$} \textbf{continue} \EndIf
+            \If{$j == n_1$ \textbf{and} $v \le M_{i-1}[u]$} \textbf{continue} \EndIf
+        \EndIf
+
+        \State $M_i[u] \gets v$
+        \State $n \gets n + \Delta_{\textit{cost}}$
+        \If{$n \ge n_{\min}$} \textbf{break} \Comment{możemy przerwać -- kandydaci są posortowani rosnąco wg kosztu}
+        \EndIf
+
+        \State Zaktualizuj $G'_2$ o brakujące krawędzie wynikające z $u \mapsto v$
+        \State $prefixEqualNext \gets prefixEqual \ \&\&\ (v == M_{i-1}[u])$
+        
+        \State \textbf{Wywołaj} RozgałęzienieRekurencyjne($i$, $j+1$, $M_i$, $G_1$, $G_2$, $G'_2$, $n$, $prefixEqualNext$, $G'_{2_{\min}}$, $n_{\min}$)
+        
+        \State Cofnij zmiany w $G'_2$ i $n$
+    \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+Pseudokod opisujący wywołanie całości algorytmu wygląda następująco:
+
+\begin{algorithm}[H]
+\caption{AlgorytmDokładny($G_1$, $G_2$, $k$)}
+\begin{algorithmic}[1]
+    \Require Grafy $G_1$, $G_2$, liczba kopii $k$
+    \Ensure Najlepsze rozszerzenie $G'_{2_{\min}}$ i minimalny koszt $n_{\min}$
+
+    \State $n_1 \gets |V(G_1)|$, $n_2 \gets |V(G_2)|$
+    \State Wyznacz porządek wierzchołków $P \gets$ \textsc{PorządekWierzchołków}($G_1$)
+    \State $G'_2 \gets G_2$ 
+    \State $n_{\min} \gets \infty$
+    \State $G'_{2_{\min}} \gets$ \texttt{NULL}
+    \State $M_1 \gets \emptyset$
+
+    \State \textbf{Wywołaj} RozgałęzienieRekurencyjne($1$, 1, $M_1$, $G_1$, $G_2$, $G'_2$, $0$, \textbf{false}, $G'_{2_{\min}}$, $n_{\min}$)
+
+    \State \Return $G'_{2_{\min}}$, $n_{\min}$
+\end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Całościowa analiza złożoności} \label{exact-complexity}
+
+Przed rozpoczęciem rekurencji musimy wyznaczyć porządek $P$ w czasie $O(n_1^2)$ zgodnie z sekcją \ref{initial-ordering}. Rekurencja schodzi na maksymalną głębokość $k\cdot n_1$ -- iloczyn liczby kopii oraz wierzchołków $G_1$ do przyporządkowania. W każdym węźle rekurencji odbywa się rozgałęzienie na co najwyżej $n_2$ przyporządkowań. W każdym węźle musimy posortować wierzchołki grafu $G_2$ w celu wyznaczenia kolejności schodzenia po kolejnych ścieżkach rozgałęziania. Jak pokazaliśmy już w sekcji \ref{branching-strategy} zajmuje to $O(n_1n_2 + n_2 \log n_2)$ operacji. Następnie odbywa się O($n_2$) wywołań rekurencyjnych. Całkowita złożoność algorytmu dokładnego wynosi wobec tego:
+\[
+O(n_1^2 + (n_1n_2 + n_2 \log n_2) \cdot n_2^{k\cdot n_1}) = O((n_1n_2 + n_2 \log n_2) \cdot n_2^{k\cdot n_1}) = O^*(n_2^{k\cdot n_1})
+\]
+gdzie notacja $O^*(\cdot)$ ignoruje współczynniki wielomianowe.
+
+Złożoność ta jest wykładnicza, co wymaga skonstruowania osobnego algorytmu aproksymacyjnego działającego w czasie wielomianowym.
+
+Warto jednak zaznaczyć, że dokonane optymalizacje, w szczególności dopasowywanie kolejnych mapowań według porządku kanonicznego jak i optymalizacja doboru kolejnych wierzchołków w celu jak najszybszego odnalezienia mapowania optymalnego powinny znacząco poprawić praktyczny czas działania algorytmu.
+
+\subsection{Uzasadnienie poprawności} \label{exact-correctness}
+W algorytmie dokładnym w sposób systematyczny przeszukujemy przestrzeń wszystkich możliwych rodzin $k$ mapowań  $M_i : V_1 \to V_2$ zgodnych z definicją zawierania rodziny podgrafów izomorficznych. Każdy stan rekurencji odpowiada częściowemu przypisaniu mapowania jednej spośród $k$ kopii grafu $G_1$ -- podczas gdy wcześniejsze kopie mają już utworzone mapowanie. Wartość funkcji kosztu $n = \text{cost}(G'_2, G_2)$ jest aktualizowana zgodnie z formalną definicją rozszerzenia.  
+
+Przechodzimy w rekurencji po wszystkich możliwych rodzinach mapowań, za wyjątkiem dwóch sytuacji:
+\begin{itemize}
+    \item Przycinamy gałąź rozgałęziania gdy koszt rozszerzenia $n$ dla obecnego przypisania jest większy lub równy niż obliczony optymalny koszt $n_{min}$.
+    \item Rodzina nie jest uporządkowana według określonego porządku kanonicznego (sekcja \ref{lex-ordering}).
+\end{itemize}
+
+W pierwszym przypadku znaleźliśmy już rodzinę $k$ mapowań $G_1$ na $G_2$ takich, że całkowity koszt rozszerzenia będzie nie większy niż koszt obecnie rozważanego przyporządkowania. Przyporządkowanie kolejnych wierzchołków głębiej w drzewie rekurencji na pewno nie zmniejszy tego kosztu -- możemy więc nie rozważać danej gałęzi.
+
+W drugiej sytuacji -- zauważmy że kolejność mapowań w danej rodzinie nie wpływa na koszt rozszerzenia. Zawsze będziemy musieli dorysować krawędzie tak, aby zaspokoić wszystkie mapowania grafu $G_1$. W szczególności, dla optymalnej rodziny mapowań $\mathcal{M}$ istnieje rodzina $\mathcal{M}'$, która zawiera te same mapowania, posortowane według porządku kanonicznego. Z tego względu na pewno nie ominiemy rozwiązania optymalnego przez wymóg zachowania tego porządku. Zachowanie porządku zapewnia również, że każda para różnych mapowań różni się od siebie obrazem.
+
+Wobec tego algorytm zawsze zwraca minimalne rozszerzenie $G'_2$, które zawiera co najmniej $k$ różnych podgrafów izomorficznych z $G_1$.
+
+\section{Algorytm aproksymacyjny} \label{approx-algo}
+
+\subsection{Idea algorytmu}
+
+Algorytm aproksymacyjny stanowi rozwiązanie problemu aproksymacyjnego opisanego w sekcji \ref{approx}.  
+Zamiast przeszukiwać całe drzewo rozgałęzień, w podejściu aproksymacyjnym rozważamy tylko \textbf{jedną ścieżkę rozgałęziania}, otrzymując w ten sposób rozwiązanie przybliżone, które następnie jest \textbf{lokalnie optymalizowane}.
+
+Celem algorytmu jest znalezienie takiego rozszerzenia grafu $G_2$, aby powstały graf $G'_2$ zawierał $k$ kopii grafu $G_1$ jako swoje podgrafy, przy czym rozszerzenie to nie musi być minimalne, lecz stanowi przybliżenie wyniku uzyskanego metodą dokładną.
+
+Podobnie jak w poprzednim algorytmie, przyjmujemy następujące założenia:
+\begin{itemize}
+    \item Każde mapowanie $M_i : V(G_1) \to V(G'_2)$ jest różnowartościowe.
+    \item Dla każdej pary $i \neq j$ zbiory przeciwdziedzin mapowań $M_i$ i $M_j$ są różne.
+    \item Przechowujemy graf $G'_2$, który jest sukcesywnie rozszerzany zgodnie z modyfikowanymi mapowaniami.
+\end{itemize}
+
+Algorytm składa się z dwóch głównych etapów:
+\begin{enumerate}
+    \item Obliczenie \textbf{początkowego dopasowania} dla każdej spośród $k$ kopii grafu $G_1$.
+    \item \textbf{Lokalnej optymalizacji} otrzymanego rozwiązania przy użyciu prostych operacji zamiany mapowań.
+\end{enumerate}
+
+\subsection{Wybór wstępnego dopasowania} \label{initial-fit}
+
+Pierwszym krokiem jest uzyskanie wstępnego mapowania $M_i$ dla każdej spośród $k$ kopii grafu $G_1$.  
+W tym celu wykorzystujemy heurystykę analogiczną do opisanego w sekcji \ref{branching-strategy} procesu rozgałęziania, jednak zamiast eksplorować wszystkie ścieżki, wybieramy tylko \textbf{pierwszą poprawną ścieżkę}, która prowadzi do utworzenia $k$ podgrafów izomorficznych z $G_1$ w $G'_2$.
+
+Dla każdej kopii $G_1^i$ (gdzie $i = 1, \ldots, k$):
+\begin{itemize}
+    \item Przechodzimy przez wierzchołki $G_1$ w ustalonym porządku (zdefiniowanym przez funkcję \textsc{PorządekWierzchołków} opisaną w sekcji \ref{initial-ordering}).
+    \item Dla każdego z nich wybieramy \textbf{najlepszego dostępnego kandydata} z $G_2$ korzystając z heurystyki opisanej w sekcji \ref{branching-strategy} (minimalizujemy liczbę krawędzi, które musimy dodać do $G'_2$ oraz maksymalizujemy liczbę tych pokrytych przez już istniejące w $G'_2$ krawędzie).
+    \item Przy wyborze kolejnych dopasowań pilnujemy zachowania \textbf{porządku leksykograficznego} (zgodnie z sekcją \ref{lex-ordering}).
+\end{itemize}
+
+\paragraph{Pseudokod.}
+Inicjalizację rozszerzenia aproksymacyjnego można opisać z wykorzystaniem poniższego pseudokodu:
+
+\begin{algorithm}[H]
+\caption{InicjalizujRozszerzenieAproksymacyjne($G_1$, $G_2$, $k$)}
+\begin{algorithmic}[1]
+    \Require 
+        $G_1$, $G_2$ -- grafy wejściowe,
+        $k$ -- liczba kopii grafu $G_1$
+    \Ensure 
+        Początkowe mapowania $M_1, \ldots, M_k$ oraz rozszerzony graf $G'_2$
+
+    \State $G'_2 \gets$ kopia $G_2$
+    \State $n \gets 0$
+    \State $P \gets$ \textsc{PorządekWierzchołków}($G_1$)
+    \State $M_0 \gets \emptyset$  \Comment{poprzednie mapowanie, dla kontroli porządku leksykograficznego}
+    
+    \For{$i = 1$ \textbf{to} $k$}
+        \State $M_i \gets \emptyset$
+        \State $prefixEqual \gets$ \textbf{true}
+        \For{$j = 1$ \textbf{to} $n_1$}
+            \State $u \gets P[j]$
+            \State $\textit{Candidates} \gets$ \textsc{WybierzKandydatów}($u$, $G_1$, $G_2$, $G'_2$, $M_i$)
+            
+            \ForAll{$(v_\text{cand}, \Delta_{\textit{cost}}, \_)$ \textbf{in} \textit{Candidates}}
+                \If{$prefixEqual$}
+                    \If{$j < n_1$ \textbf{and} $v < M_{i-1}[u]$} \textbf{continue} \EndIf
+                    \If{$j == n_1$ \textbf{and} $v \le M_{i-1}[u]$} \textbf{continue} \EndIf
+                \EndIf
+                \State $v \gets v_\text{cand}$ \Comment{wybrany kandydat spełniający wymagania}
+                \State \textbf{break}
+            \EndFor
+            
+            \State $M_i[u] \gets v$
+            \State $n \gets n + \Delta_{\textit{cost}}$
+            \State Zaktualizuj $G'_2$ o brakujące krawędzie wynikające z przypisania $u \mapsto v$
+            \State $prefixEqual \gets prefixEqual \ \&\&\ (v == M_{i-1}[u])$
+        \EndFor
+    \EndFor
+    
+    \State \Return $(G'_2, M_1, \ldots, M_k, n)$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Rozgałęzianie początkowe.}
+W praktyce, aby poprawić jakość dopasowania początkowego, można rozważyć rozgałęzienia dla pierwszego wierzchołka pierwszej kopii $G_1$ i wybrać spośród nich mapowanie, które daje najmniejszy całkowity koszt rozszerzenia.  
+Pozostała część dopasowania (dla różnych wyborów pierwszego wierzchołka) wyznaczana jest już zachłannie. Wybór pierwszego wierzchołka dopasowania ma największy wpływ na dalszą budowę rozwiązania -- wobec tego możemy liczyć na to, że dla któregoś wyboru otrzymamy rozwiązanie zbliżone do optymalnego.
+
+\paragraph{Zapewnienie odnalezienia rodziny mapowań.}
+W rzadkich sytuacjach może się zdarzyć, że powyższy algorytm nie będzie w stanie zwrócić poprawnego zestawu mapowań. Wydarzy się to, jeżeli pewne ustalone mapowanie $M_i$ będzie w porządku leksykograficznym na tyle wysoko, że nie będzie istniała odpowiednia liczba mapowań dalej w tym porządku, konieczna do pokrycia wszystkich kolejnych. 
+
+Problem ten może zostać rozwiązany poprzez znalezienie przed uruchomieniem algorytmu $k$ ostatnich w porządku leksykograficznym mapowań (da się to zrobić w czasie $O(k)$) i zabranianie mapowaniom przyjmowania zbyt wysokich w porządku wartości -- w analogiczny sposób w jaki pilnujemy zachowania porządku leksykograficznego.
+
+\newpage
+\paragraph{Analiza złożoności.}
+Analogicznie do analizy złożoności algorytmu głównego (sekcja \ref{exact-complexity}) głębokość rozgałęziania wynosi $k\cdot n_1$ -- jednak w wypadku algorytmu aproksymacyjnego rozważamy tylko jedną (lub $n_2$ dla wariantu z rozgałęzianiem po pierwszym wierzchołku) ścieżkę rozgałęziania. Wybór najlepszego kandydata z $G_2$ do przyporządkowania mapowania odbywa się w czasie $O(n_1n_2 + n_2 \log n_2 + n_2)=O(n_1n_2 + n_2 \log n_2)$ (analogicznie jak w sekcji \ref{branching-strategy} -- musimy jedynie iterować po posortowanej liście aż do znalezienia kandydata poprawnego w porządku kanonicznym). Wyznaczenie porządku $P$ wierzchołków $G_1$ na początku algorytmu odbywa się tak jak wcześniej w~czasie $O(n_1^2)$. 
+
+Wobec tego całkowity czas znalezienia wstępnego dopasowania wynosi:
+\[
+O(k\cdot n_1\cdot(n_1n_2 + n_2 \log n_2)) = O(k\cdot n_1\cdot n_2\cdot(n_1 +\log n_2))
+\]
+Alternatywnie, jeśli wykorzystamy rozgałęzianie po pierwszym wierzchołku pierwszej kopii (na $n_2$ sposobów) złożoność wyniesie $O(k\cdot n_1\cdot n_2^2\cdot(n_1 +\log n_2))$.
+
+\subsection{Lokalne optymalizowanie dopasowania} \label{local-optimization}
+
+Po obliczeniu wszystkich wstępnych mapowań $M_1, M_2, \ldots, M_k$ rozpoczynamy proces lokalnej optymalizacji.  
+Na tym etapie graf $G'_2$ jest już zdefiniowany -- zawiera wszystkie dodane krawędzie wynikające z dotychczasowych mapowań.  
+
+Optymalizujemy mapowania $M_i$ względem pary lokalnych operacji. Dla każdego mapowania sprawdzamy w jaki sposób zmieni się nasz wynik poprzez zmianę mapowania dla jednego wierzchołka na każdy możliwy sposób.
+
+Dla wybranego mapowania $M_i$ oraz pary wierzchołków $u\in V(G_1), v\in V(G
+_2)$ próbujemy dla $M_i$ ustalić przypisanie $u\mapsto v$. Zachodzi wówczas jedna z następujących sytuacji:
+\begin{itemize}
+    \item \textbf{Przepięcie} -- jeśli $v$ nie należy do obrazu $M_i$ możemy zastąpić istniejące przyporządkowanie $M_i(u) = v'$ przez $M_i(u) = v$.
+    \item \textbf{Zamiana} -- jeśli $M_i(u) = v'$, $M_i(u') = v$, możemy zamienić ze sobą przyporządkowania, tj. ustawić $M_i(u) = v$ oraz $M_i(u') = v'$.
+\end{itemize}
+
+Usuwając przyporządkowanie musimy sprawdzić, jakie krawędzie możemy na tym etapie usunąć z~grafu $G'_2$. Następnie możemy obliczyć koszt nowych przypisać z wykorzystaniem funkcji \textsc{ObliczKoszt} (sekcja \ref{cost-and-state}).
+
+Musimy zadbać również o to, aby po przepięciu żadne dwa mapowania $M_i, M_j$ nie posiadały tego samego obrazu. W tym celu możemy trzymać ich przeciwdziedziny w trakcie wykonania algorytmu w~standardowych strukturach reprezentujących zbiory (np. hash set) i porównywać zbiory po przepięciu z tymi już istniejącymi dla obecnych mapowań.
+
+Dla każdej iteracji wybierana jest najlepsza pojedyncza zamiana, która najbardziej redukuje koszt rozszerzenia. Po wykonaniu takiej zmiany algorytm aktualizuje mapowanie i ponownie przeszukuje wszystkie możliwe pary $(u, v)$.  
+Proces trwa do momentu, gdy żadna zmiana nie prowadzi do dalszej poprawy -- otrzymaliśmy wówczas lokalnie optymalne rozwiązanie.
+
+\newpage
+\paragraph{Pseudokod.}
+Lokalną optymalizację dopasowania można opisać poniższym pseudokodem:
+
+\begin{algorithm}[H]
+\caption{PoprawRozszerzenieAproksymacyjne($M_1, \ldots, M_k$, $G_1$, $G'_2$, $n$)}
+\begin{algorithmic}[1]
+    \Require 
+        $M_1, \ldots, M_k$ -- wstępne mapowania, 
+        $G_1, G'_2$ -- grafy,
+        $n$ -- bieżący koszt rozszerzenia
+    \Ensure 
+        Lokalne optimum mapowań, zaktualizowany graf $G'_2$, koszt rozszerzenia $n$
+    
+    \State Dla każdego $i$ utwórz \texttt{Obrazy[$i$]} $\gets$ zbiór wierzchołków obrazu $M_i$
+    \State $improved \gets$ \textbf{true}
+    
+    \While{$improved$}
+        \State $improved \gets$ \textbf{false}
+        \State $bestDelta \gets 0$
+        \State $bestOp \gets$ \texttt{NULL}
+        
+        \For{$i = 1$ \textbf{to} $k$} \Comment{przeglądamy wszystkie kopie}
+            \For{$u \in V(G_1)$}
+                \For{$v \in V(G_2)$} \Comment{przeglądamy wszystkie możliwe przypisania}
+                    
+                    \If{$v \in \texttt{Obrazy[i]}$} \Comment{możliwa zamiana z innym wierzchołkiem $u'$}
+                        \State $u' \gets$ taki, że $M_i[u'] = v$
+                        \State Tymczasowo zamień $M_i[u] \leftrightarrow M_i[u']$
+                    \Else \Comment{proste przepięcie}
+                        \State Tymczasowo ustaw $M_i[u] = v$
+                    \EndIf
+                    
+                    \State Zaktualizuj $G'_2$: usuń krawędzie związane z poprzednim przypisaniem $u$ (i ewentualnie $u'$)
+                    \State Oblicz obniżenie kosztu dla nowego mapowania $delta$ z wykorzystaniem \textsc{ObliczKoszt}($M_i$, $G_1$, $G'_2$)
+                    \State Sprawdź, czy żadne dwa mapowania nie mają wspólnego wierzchołka w obrazach
+                    
+                    \If{operacja poprawia koszt i jest dopuszczalna}
+                        \If{$delta > bestDelta$}
+                            \State $bestDelta \gets delta$
+                            \State $bestOp \gets$ bieżąca operacja
+                        \EndIf
+                    \EndIf
+                    
+                    \State Cofnij zmiany w $M_i$ i $G'_2$
+                \EndFor
+            \EndFor
+        \EndFor
+        
+        \If{$bestOp \neq$ \texttt{NULL}}
+            \State Wykonaj $bestOp$ w $M_i$ i zaktualizuj $G'_2$ oraz \texttt{Obrazy[i]}
+            \State $n \gets n - bestDelta$
+            \State $improved \gets$ \textbf{true}
+        \EndIf
+    \EndWhile
+    
+    \State \Return $M_1, \ldots, M_k, G'_2, n$
+\end{algorithmic}
+\end{algorithm}
+
+
+\paragraph{Wariant zachłanny.}
+Możliwa jest również wariacja algorytmu, w której w każdej iteracji wykonywane są wszystkie operacje zamiany prowadzące do poprawy kosztu (a nie tylko pojedyncza najlepsza). Takie podejście znacząco redukuje czas działania, ale może prowadzić do uzyskania słabszej jakości aproksymacji. Z tego powodu w głównej wersji algorytmu zastosowano strategię wyboru pojedynczej, najbardziej korzystnej zmiany w każdej iteracji.
+
+\newpage
+\paragraph{Analiza złożoności.}
+
+W każdej iteracji algorytmu musimy dla każdej kopii grafu $G_1$ przeiterować się po wszystkich jej wierzchołkach, a dla każdego z nich przejść przez wszystkie wierzchołki grafu $G_2$, w celu wyznaczenia wszystkich możliwych par $(u, v)\in V(G_1)\times V(G_2)$. Zajmie to nam $O(k\cdot n_1\cdot n_2)$ czasu.
+
+Dla każdej zamiany musimy po kolei:
+\begin{itemize}
+    \item Sprawdzić, czy usunięcie istniejącego mapowania zmniejszy ilość krawędzi w $G'_2$ na podstawie krawędzi potrzebnych do utworzenia pozostałych mapowań ($O(k\cdot n_1)$).
+    \item Obliczyć koszt utworzenia nowego mapowania ($O(n_1)$).
+    \item Sprawdzić, czy zmodyfikowane mapowanie ma inną przeciwdziedzinę od każdego już istniejącego ($O(k\cdot n_1)$).
+\end{itemize}
+
+Wszystkie powyższe operacje zajmują łącznie $O(k\cdot n_1)$ czasu.
+
+Jedna iteracja algorytmu zajmuje wobec tego $O((k\cdot n_1\cdot n_2)\cdot(k\cdot n_1))=O(k^2\cdot n_1^2\cdot n_2)$ czasu.
+
+Zauważmy, że niezależnie od początkowego przyporządkowania mapowań $M_1, \ldots, M_k$ możemy dorysować do $G'_2$ co najwyżej $m_1$ krawędzi dla każdej kopii grafu $G_1$ -- przy założeniu, że żadna krawędź z naszych mapowań nie pokrywa się z oryginalnymi krawędziami grafu $G_2$, ani ze sobą nawzajem. Wobec tego maksymalny koszt dowolnego mapowania wynosi $k\cdot m_1$. Jako, że każda iteracja algorytmu musi poprawić koszt, jest to też maksymalna ilość iteracji. Wobec tego całkowita złożoność poprawy rozszerzenia aproksymacyjnego wynosi $O(k^3\cdot n_1^2\cdot n_2\cdot m_1)$.
+
+\subsection{Działanie algorytmu}
+
+Ostatecznie, algorytm wyszukujący aproksymacyjne rozwiązanie problemu można opisać prostym pseudokodem -- wywołuje on po prostu sekwencyjnie wybór wstępnego dopasowania, po czym poprawia je używając lokalnej optymalizacji:
+
+\begin{algorithm}[H]
+\caption{AlgorytmAproksymacyjny($G_1, G_2, k$)}
+\begin{algorithmic}[1]
+    \Require 
+        $G_1, G_2$ -- grafy wejściowe, 
+        $k$ -- liczba kopii grafu $G_1$
+    \Ensure 
+        Rozszerzony graf $G'_2$, koszt rozszerzenia $n$
+    
+    \State $(G'_2, M_1, \ldots, M_k, n) \gets$ \textsc{InicjalizujRozszerzenieAproksymacyjne}($G_1, G_2, k$)
+    \State $(M_1, \ldots, M_k, G'_2, n) \gets$ \textsc{PoprawRozszerzenieAproksymacyjne}($M_1, \ldots, M_k, G_1, G'_2, n$)
+    \State \Return $G'_2, n$
+\end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Całościowa analiza złożoności}
+
+Jako, że algorytm wykonuje po prostu dwa kroki, których złożoność już obliczyliśmy w sekcjach \ref{initial-fit} i~\ref{local-optimization}, złożoność całego algorytmu aproksymacyjnego wynosi:
+\[
+O((k\cdot n_1\cdot n_2\cdot(n_1 +\log n_2))+(k^3\cdot n_1^2\cdot n_2\cdot m_1))
+\]
+
+Udało nam się wobec tego zaprojektować algorytm, który w czasie wielomianowym znajduje aproksymacyjne rozwiązanie problemu zawierania $k$ kopii. Algorytm ten nie wyznacza rozwiązania optymalnego, jednak zwraca rozwiązanie optymalne przynajmniej względem prostych optymalizacji i powinien działać w istotnie lepszym czasie.
+
+\subsection{Uzasadnienie poprawności}
+
+Uzasadnienie poprawności przyporządkowania początkowego przebiega analogicznie do uzasadnienia poprawności algorytmu dokładnego (sekcja \ref{exact-correctness}) -- choć w tym wypadku rozważamy oczywiście tylko jedną ścieżkę rozgałęziania.
+
+Lokalna optymalizacja dopasowania pozwala jedynie na proste zmiany mapowań, których koszt obliczany jest na bieżąco. Pilnujemy, aby każda para różnych mapowań miała różniące się obrazy, wobec czego wszystkie warunki z definicji zawierania rodziny podgrafów izomorficznych pozostają spełnione.
+
+Wobec tego algorytm zawsze zwraca pewne rozszerzenie $G'_2$, które zawiera co najmniej $k$ różnych podgrafów izomorficznych z $G_1$.
+
+\newpage
+
+\section{Podsumowanie wyników}
+
+Przedstawione w sekcji \ref{exact-algo} podejście dokładne umożliwia znalezienie minimalnego rozszerzenia $G_2$ gwarantującego istnienie $k$ kopii podgrafów izomorficznych z $G_1$. Złożoność tego algorytmu wynosi
+\[
+O^*(n_2^{k\cdot n_1}),
+\]
+gdzie $n_1 = |V(G_1)|$, $n_2 = |V(G_2)|$. Złożoność ta jest wykładnicza, co ogranicza praktyczne zastosowanie algorytmu do niewielkich grafów.  
+
+W celu uzyskania rozwiązań dla większych instancji zaproponowaliśmy w sekcji \ref{approx-algo} algorytm aproksymacyjny. Działa on w czasie wielomianowym względem rozmiaru grafów wejściowych i liczby $k$, a dokładniej w czasie
+\[
+O((k\cdot n_1\cdot n_2\cdot(n_1 +\log n_2))+(k^3\cdot n_1^2\cdot n_2\cdot m_1)).
+\]
+Algorytm aproksymacyjny znajduje rozszerzenie $G'_2$ zawierające $k$ kopii $G_1$, które niekoniecznie jest minimalne, ale zastosowanie lokalnej optymalizacji powinno znacznie zredukować koszt rozszerzenia w praktycznych przypadkach.
+
+\end{document}

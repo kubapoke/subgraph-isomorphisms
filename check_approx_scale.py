@@ -177,7 +177,7 @@ def parse_output(output: str, n1: int, n2: int, k: int):
 # ============================================================================
 
 def main():
-    exe = r".\cmake-build-debug\subgraph-isomorphism.exe"
+    exe = r".\build\subgraph-isomorphism.exe"
     test_file = "temp_scale_test.txt"
     
     scenarios = [
