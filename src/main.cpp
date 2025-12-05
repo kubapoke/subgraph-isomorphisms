@@ -26,7 +26,7 @@ struct Graph {
     Graph(Graph&&) = default;
 
     // Liczba krawedzi wchodzacych i wychodzacych z v
-    [[nodiscard]] uint32_t degree(const uint32_t v) const {
+    uint32_t degree(const uint32_t v) const {
         uint32_t degree = 0;
 
         for (int u = 0; u < n; ++u) {
@@ -38,7 +38,7 @@ struct Graph {
     }
 
     // Liczba wszystkich krawedzi w grafie
-    [[nodiscard]] uint64_t totalEdges() const {
+    uint64_t totalEdges() const {
         uint64_t count = 0;
         for(const auto& row : matrix) {
             for(const int val : row) count += val;
@@ -48,7 +48,7 @@ struct Graph {
 
     // Zwraca wierzcholki w kolejnosci, w jakiej powinny byc rozpatrywane
     // Patrz: "PorzadekWierzcholkow" w dokumentacji
-    [[nodiscard]] std::vector<uint32_t> verticesOrder() const {
+    std::vector<uint32_t> verticesOrder() const {
         std::vector<uint32_t> order(n, 0);
 
         // edgesToAlreadyAssigned[i] = j oznaczna, ze i-ty wierzcholek ma j krawedzi do juz uporzadkowanych wierzcholkow
