@@ -14,7 +14,7 @@ Założenia działania programu pozostają zgodne z dokumentacją, w szczególno
 Program został przygotowany w ramach pojedynczego pliku `.cpp`, wobec czego do jego kompilacji wystarczy wywołanie:
 
 ```bash
-./main.cpp -o subgraph-isomorphism.exe
+g++ ./main.cpp -o subgraph-isomorphism.exe
 ```
 
 w folderze zawierającym plik `main.cpp`. Poprawność kompilacji była testowana na komputerach laboratoryjnych.
