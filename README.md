@@ -9,6 +9,16 @@ Założenia działania programu pozostają zgodne z dokumentacją, w szczególno
 - Zakładamy, że |G1| <= |G2|.
 - Nasze rozszerzenie dodaje do grafu G2 jedynie krawędzie.
 
+## Kompilacja
+
+Program został przygotowany w ramach pojedynczego pliku `.cpp`, wobec czego do jego kompilacji wystarczy wywołanie:
+
+```bash
+./main.cpp -o subgraph-isomorphism.exe
+```
+
+w folderze zawierającym plik `main.cpp`. Poprawność kompilacji była testowana na komputerach laboratoryjnych.
+
 ## Uruchamianie
 
 ```bash
@@ -78,4 +88,4 @@ Program opisuje najpierw instancję wejściową, po czym wypisuje osiągnięte p
 - Mappings -- opisuje mapowania wierzchołków kolejnych kopii grafu G1 na wierzchołki grafu G2.
 - Extended graph G'2 -- macierz sąsiedztwa rozszerzonego grafu G'2 zawierającego k kopii grafu G1.
 
-Wyniki działania programu są zapisane również do pliku `out.txt` w bieżącym katalogu.
+Wyniki działania programu (część "Results") są zapisywane również do pliku `out.txt` w bieżącym katalogu.
