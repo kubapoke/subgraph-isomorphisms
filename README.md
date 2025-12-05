@@ -18,6 +18,7 @@ g++ ./main.cpp -o subgraph-isomorphism.exe
 ```
 
 w folderze zawierającym plik `main.cpp`. Poprawność kompilacji była testowana na komputerach laboratoryjnych.
+Wykorzystana wersja `g++` musi wspierać wersję języka `C++14`.
 
 ## Uruchamianie
 
